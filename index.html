@@ -1691,16 +1691,20 @@
         seen.set(c.name, c);
       }
 
-      // 5. 强制加入图片实际最暗色和最亮色的豆号
-      // K-means 在暗/亮区域像素占比少时可能不分配质心，导致深黑/纯白丢失
-      if (darkestLum < 80) {  // 图片有较暗的区域
+      // 5. 强制加入图片实际最暗色的豆号
+      // K-means 在暗色区域像素少时可能不分配质心，导致深色丢失
+      if (darkestLum < 80) {
         const dc = closestColor(darkR, darkG, darkB, palette);
         seen.set(dc.name, dc);
+        // 额外：若套装含 H7（纯黑 RGB 1,1,1），且图有明显暗部，直接加入
+        // closestColor 在图片无纯黑像素时会跳过 H7；强制加入后
+        // 抖动算法可在误差积累时用到它，写实照片效果更准确
+        if (darkestLum < 60) {
+          const h7 = palette.find(p => p.name === 'H7');
+          if (h7) seen.set('H7', h7);
+        }
       }
-      if (lightestLum > 200) { // 图片有较亮的区域（含被跳过的近白像素）
-        const lc = closestColor(lightR, lightG, lightB, palette);
-        seen.set(lc.name, lc);
-      }
+      // 注：不强制加最亮色（H1）——H1 在 LAB 去重时会把所有浅灰都吸收，损害颜色多样性
 
       return [...seen.values()];
     }
@@ -1832,10 +1836,10 @@
       // 艺术风格配置
       const style = document.querySelector('.style-btn.active')?.dataset.style || 'simplified';
       const STYLE_CFG = {
-        realistic:  { n: null, dither: true,  labDedup: 5, noise: false },
-        simplified: { n: null, dither: false, labDedup: 5, noise: false },
-        cartoon:    { n: 12,   dither: false, labDedup: 5, noise: true  },
-        minimal:    { n: 6,    dither: false, labDedup: 8, noise: true  },
+        realistic:  { n: null, dither: true,  labDedup: 2, noise: false },
+        simplified: { n: null, dither: true,  labDedup: 2, noise: false },
+        cartoon:    { n: 12,   dither: false, labDedup: 4, noise: true  },
+        minimal:    { n: 6,    dither: false, labDedup: 6, noise: true  },
       };
       const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
 
