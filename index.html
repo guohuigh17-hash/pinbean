@@ -164,6 +164,26 @@
           <button class="btn pp-btn" id="pp-crop-btn">✂ 手动裁剪</button>
           <button class="btn pp-btn" id="pp-reset-btn">还原原图</button>
         </div>
+        <!-- 卡通化控件 -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:#fff;border:1px solid #e8e8e0;border-radius:8px;">
+          <span style="font-size:12px;font-weight:600;color:#555;white-space:nowrap;">🎨 卡通化</span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#666;white-space:nowrap;">
+            像素块
+            <input type="range" id="pp-px-size" min="2" max="32" value="8" style="width:72px;accent-color:#1a1a1a;cursor:pointer;">
+            <span id="pp-px-size-val" style="min-width:18px;font-weight:600;color:#1a1a1a;">8</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#666;white-space:nowrap;">
+            色数
+            <select id="pp-px-colors" style="font-size:12px;padding:3px 6px;border:1px solid #e0e0d8;border-radius:6px;cursor:pointer;">
+              <option value="6">6色</option>
+              <option value="10">10色</option>
+              <option value="16" selected>16色</option>
+              <option value="24">24色</option>
+              <option value="48">48色</option>
+            </select>
+          </label>
+          <button class="btn pp-btn btn-primary" id="pp-cartoon-btn" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a;">应用卡通化</button>
+        </div>
         <div class="pp-canvas-outer" id="pp-canvas-outer">
           <canvas id="pp-canvas"></canvas>
         </div>
@@ -818,6 +838,93 @@
       ppDraw();
     }
 
+    // ── 卡通化（像素块 + K-means 色彩量化）────────────────────────────────────────
+    function ppCartoonize() {
+      if (!ppOffscreen) return;
+      const blockSize = parseInt(document.getElementById('pp-px-size').value) || 8;
+      const numColors = parseInt(document.getElementById('pp-px-colors').value) || 16;
+      const ctx = ppOffscreen.getContext('2d');
+      const W = ppOffscreen.width, H = ppOffscreen.height;
+      const imgData = ctx.getImageData(0, 0, W, H);
+      const data = imgData.data;
+
+      // ① 像素块化：每个块取平均色
+      for (let by = 0; by < H; by += blockSize) {
+        for (let bx = 0; bx < W; bx += blockSize) {
+          const bW = Math.min(blockSize, W - bx);
+          const bH = Math.min(blockSize, H - by);
+          let r=0,g=0,b=0,n=0;
+          for (let y=by;y<by+bH;y++) for (let x=bx;x<bx+bW;x++) {
+            const i=(y*W+x)*4;
+            r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++;
+          }
+          r=Math.round(r/n); g=Math.round(g/n); b=Math.round(b/n);
+          for (let y=by;y<by+bH;y++) for (let x=bx;x<bx+bW;x++) {
+            const i=(y*W+x)*4;
+            data[i]=r; data[i+1]=g; data[i+2]=b;
+          }
+        }
+      }
+
+      // ② K-means 色彩量化：把颜色压缩到 numColors 种
+      const total = W * H;
+      // 采样（每隔几个像素取一个，加速）
+      const step = Math.max(1, Math.floor(total / 3000));
+      const samples = [];
+      for (let i=0;i<total;i+=step) {
+        const pi=i*4;
+        if (data[pi+3]<128) continue;
+        samples.push([data[pi],data[pi+1],data[pi+2]]);
+      }
+      if (samples.length < numColors) { ctx.putImageData(imgData,0,0); ppDraw(); return; }
+
+      // 初始化质心（均匀从样本中挑）
+      let centroids = [];
+      const stride = Math.floor(samples.length / numColors);
+      for (let k=0;k<numColors;k++) centroids.push([...samples[k*stride]]);
+
+      // 迭代 10 次
+      for (let iter=0;iter<10;iter++) {
+        const sums = Array.from({length:numColors},()=>[0,0,0,0]);
+        for (const [r,g,b] of samples) {
+          let best=0,bestD=Infinity;
+          for (let k=0;k<numColors;k++) {
+            const [cr,cg,cb]=centroids[k];
+            const d=(r-cr)**2+(g-cg)**2+(b-cb)**2;
+            if (d<bestD){bestD=d;best=k;}
+          }
+          sums[best][0]+=r;sums[best][1]+=g;sums[best][2]+=b;sums[best][3]++;
+        }
+        for (let k=0;k<numColors;k++) {
+          const cnt=sums[k][3];
+          if (cnt>0) centroids[k]=[
+            Math.round(sums[k][0]/cnt),
+            Math.round(sums[k][1]/cnt),
+            Math.round(sums[k][2]/cnt)
+          ];
+        }
+      }
+
+      // 把每个像素映射到最近质心
+      for (let i=0;i<total;i++) {
+        const pi=i*4;
+        if (data[pi+3]<128) continue;
+        const r=data[pi],g=data[pi+1],b=data[pi+2];
+        let best=0,bestD=Infinity;
+        for (let k=0;k<numColors;k++) {
+          const [cr,cg,cb]=centroids[k];
+          const d=(r-cr)**2+(g-cg)**2+(b-cb)**2;
+          if (d<bestD){bestD=d;best=k;}
+        }
+        data[pi]=centroids[best][0];
+        data[pi+1]=centroids[best][1];
+        data[pi+2]=centroids[best][2];
+      }
+
+      ctx.putImageData(imgData,0,0);
+      ppDraw();
+    }
+
     // ── 还原原图 ──────────────────────────────────────────────────────────────────
     function ppReset() {
       if (!ppOrigData) return;
@@ -1008,6 +1115,10 @@
       });
     })();
 
+    document.getElementById('pp-px-size').addEventListener('input', e => {
+      document.getElementById('pp-px-size-val').textContent = e.target.value;
+    });
+    document.getElementById('pp-cartoon-btn').addEventListener('click', ppCartoonize);
     document.getElementById('pp-center-btn').addEventListener('click', ppAutoCenter);
     document.getElementById('pp-reset-btn').addEventListener('click', ppReset);
     document.getElementById('pp-crop-btn').addEventListener('click', ppEnterCrop);
