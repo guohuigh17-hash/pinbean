@@ -288,6 +288,18 @@
           <span class="label-hint">（格子 ≥9px 时生效）</span>
         </label>
       </div>
+      <div class="toggle-row" style="margin-top:6px;">
+        <label class="toggle-label">
+          <input type="checkbox" id="subject-mode">
+          只拼主体（自动去除背景空位）
+        </label>
+        <div id="subject-tolerance-row" style="display:none;margin-top:6px;font-size:12px;color:#666;display:flex;align-items:center;gap:8px;">
+          <span>去除灵敏度</span>
+          <input type="range" id="subject-tolerance" min="10" max="100" step="5" value="50" style="flex:1;max-width:120px;">
+          <span id="subject-tolerance-val">50</span>
+        </div>
+      </div>
+      <div id="smart-hint" style="font-size:12px;color:#888;margin:6px 0 2px;padding:6px 10px;background:#f7f7f5;border-radius:6px;display:none;line-height:1.5;"></div>
 
       <div class="buttons">
         <button class="btn btn-primary" id="convert-btn" disabled>生成图纸</button>
@@ -629,6 +641,152 @@
       return [...names].map(n => COLOR_MAP[n]).filter(Boolean);
     }
 
+    // ─── 空格绘制（主体模式的"无豆"格子）────────────────────────────────────────
+    function drawEmptyCell(ctx, px, py, cs) {
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillRect(px, py, cs, cs);
+      ctx.fillStyle = '#d0d0d0';
+      const h = cs / 2;
+      ctx.fillRect(px,    py,    h, h);
+      ctx.fillRect(px+h,  py+h,  h, h);
+    }
+
+    // ─── 图片内容分析（上传后自动运行）──────────────────────────────────────────
+    function analyzeImageContent(src) {
+      const size = 64;
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(src, 0, 0, size, size);
+      const d = ctx.getImageData(0, 0, size, size).data;
+
+      // 色彩丰富度（量化到5位精度）
+      const colorSet = new Set();
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i]>>3, g = d[i+1]>>3, b = d[i+2]>>3;
+        colorSet.add((r<<10)|(g<<5)|b);
+      }
+
+      // 边缘密度
+      let edgeSum = 0;
+      for (let y = 1; y < size-1; y++) {
+        for (let x = 1; x < size-1; x++) {
+          const i = (y*size+x)*4;
+          const dx = (d[(y*size+x+1)*4] - d[(y*size+x-1)*4]) +
+                     (d[(y*size+x+1)*4+1] - d[(y*size+x-1)*4+1]) +
+                     (d[(y*size+x+1)*4+2] - d[(y*size+x-1)*4+2]);
+          const dy = (d[((y+1)*size+x)*4] - d[((y-1)*size+x)*4]) +
+                     (d[((y+1)*size+x)*4+1] - d[((y-1)*size+x)*4+1]) +
+                     (d[((y+1)*size+x)*4+2] - d[((y-1)*size+x)*4+2]);
+          edgeSum += Math.sqrt(dx*dx + dy*dy);
+        }
+      }
+      const edgeDensity = edgeSum / (size * size * 3 * 255);
+
+      // 四边像素方差（背景复杂度）
+      const ep = [];
+      for (let x = 0; x < size; x++) {
+        ep.push(d[x*4], d[x*4+1], d[x*4+2]);
+        ep.push(d[((size-1)*size+x)*4], d[((size-1)*size+x)*4+1], d[((size-1)*size+x)*4+2]);
+      }
+      for (let y = 1; y < size-1; y++) {
+        ep.push(d[y*size*4], d[y*size*4+1], d[y*size*4+2]);
+        ep.push(d[(y*size+size-1)*4], d[(y*size+size-1)*4+1], d[(y*size+size-1)*4+2]);
+      }
+      const epMean = ep.reduce((s,v)=>s+v,0)/ep.length;
+      const bgVariance = ep.reduce((s,v)=>s+(v-epMean)**2,0)/ep.length;
+
+      return { colorComplexity: colorSet.size, edgeDensity, bgVariance };
+    }
+
+    function showSmartHint(analysis) {
+      const el = document.getElementById('smart-hint');
+      if (!analysis) { el.style.display = 'none'; return; }
+      const { colorComplexity, edgeDensity, bgVariance } = analysis;
+      const bs = parseInt(document.getElementById('board-type').value);
+      let icon, msg, recW, recH;
+
+      if (colorComplexity < 120 && edgeDensity < 0.07) {
+        // 简单图案：icon / logo / 贴纸
+        icon = '🎯';
+        recW = recH = Math.max(15, Math.round(bs * 0.6));
+        msg = `图案简单（logo / 贴纸风格），推荐 ${recW}×${recH} 即可清晰还原。可开启「只拼主体」去掉背景。`;
+      } else if (colorComplexity > 350 || edgeDensity > 0.16) {
+        // 复杂图案：照片 / 人像
+        icon = '🖼';
+        recW = recH = bs;
+        msg = `图案细节丰富（照片 / 人像），推荐至少 ${recW}×${recH} 以上。`;
+        if (bgVariance > 1800) msg += ' 四周背景较复杂，建议先裁图突出主体。';
+      } else {
+        // 中等
+        icon = '✏️';
+        recW = recH = Math.round(bs * 0.8);
+        msg = `图案复杂度适中，推荐 ${recW}×${recH} 左右。`;
+      }
+
+      // 更新推荐尺寸输入框（如果用户还没改过就自动填）
+      const wEl = document.getElementById('pattern-w');
+      const hEl = document.getElementById('pattern-h');
+      const { maxW, maxH } = getBoardConfig();
+      if (!wEl.dataset.userEdited) wEl.value = Math.min(recW, maxW);
+      if (!hEl.dataset.userEdited) hEl.value = Math.min(recH, maxH);
+      updateFeedback();
+
+      el.style.display = 'block';
+      el.innerHTML = `${icon} <strong>图片分析：</strong>${msg}`;
+    }
+
+    // ─── 主体模式：从边缘 BFS 去除背景色格子 ────────────────────────────────────
+    function applySubjectMode(grid, gW, gH, tolerance) {
+      // 找四边最常见颜色作为背景色
+      const borderCount = {};
+      for (let x = 0; x < gW; x++) {
+        const t = grid[0][x], b = grid[gH-1][x];
+        if (t) borderCount[t.name] = (borderCount[t.name]||0)+1;
+        if (b) borderCount[b.name] = (borderCount[b.name]||0)+1;
+      }
+      for (let y = 1; y < gH-1; y++) {
+        const l = grid[y][0], r = grid[y][gW-1];
+        if (l) borderCount[l.name] = (borderCount[l.name]||0)+1;
+        if (r) borderCount[r.name] = (borderCount[r.name]||0)+1;
+      }
+      const entries = Object.entries(borderCount);
+      if (!entries.length) return grid;
+      const bgName = entries.sort((a,b)=>b[1]-a[1])[0][0];
+      const bg = COLOR_MAP[bgName];
+      const tolSq = tolerance * tolerance;
+
+      // BFS 从所有边缘格子出发
+      const visited = new Uint8Array(gW * gH);
+      const queue = [];
+      for (let x = 0; x < gW; x++) { queue.push(x, 0); queue.push(x, gH-1); }
+      for (let y = 1; y < gH-1; y++) { queue.push(0, y); queue.push(gW-1, y); }
+
+      let qi = 0;
+      while (qi < queue.length) {
+        const x = queue[qi++], y = queue[qi++];
+        if (x < 0 || x >= gW || y < 0 || y >= gH) continue;
+        const idx = y * gW + x;
+        if (visited[idx]) continue;
+        const cell = grid[y][x];
+        if (!cell) { visited[idx] = 1; continue; }
+        const dr = cell.r-bg.r, dg = cell.g-bg.g, db = cell.b-bg.b;
+        if (dr*dr + dg*dg + db*db > tolSq) continue;
+        visited[idx] = 1;
+        queue.push(x+1, y); queue.push(x-1, y);
+        queue.push(x, y+1); queue.push(x, y-1);
+      }
+
+      // 标记背景格为 null
+      for (let y = 0; y < gH; y++)
+        for (let x = 0; x < gW; x++)
+          if (visited[y * gW + x]) grid[y][x] = null;
+
+      return grid;
+    }
+
     function closestColor(r, g, b, palette) {
       let best = palette[0], bestDist = Infinity;
       for (const c of palette) {
@@ -648,6 +806,7 @@
     let currentTierIndex = 0, currentColorCount = null, currentShowLabels = true;
     let patternW = 34, patternH = 34;
     let highlightedColor = null;
+    let lastImageAnalysis = null; // 上传图片时的分析结果
 
     // ─── 图片预处理状态 ───────────────────────────────────────────────────────────
     let ppOffscreen   = null;   // 当前预处理后的离屏 canvas（工作分辨率）
@@ -1159,8 +1318,21 @@
     ['board-type','boards-x','boards-y'].forEach(id =>
       document.getElementById(id).addEventListener('input', updateConfig));
 
-    ['pattern-w','pattern-h'].forEach(id =>
-      document.getElementById(id).addEventListener('input', updateFeedback));
+    ['pattern-w','pattern-h'].forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener('input', () => {
+        el.dataset.userEdited = '1';
+        updateFeedback();
+      });
+    });
+
+    // 只拼主体：灵敏度滑块联动
+    document.getElementById('subject-mode').addEventListener('change', function() {
+      document.getElementById('subject-tolerance-row').style.display = this.checked ? 'flex' : 'none';
+    });
+    document.getElementById('subject-tolerance').addEventListener('input', function() {
+      document.getElementById('subject-tolerance-val').textContent = this.value;
+    });
 
     // 初始化
     updateConfig();
@@ -1180,6 +1352,11 @@
             <p style="font-size: 12px; color: #aaa; margin-top: 2px;">点击重新选择</p>
           `;
           document.getElementById('convert-btn').disabled = false;
+          // 分析图片内容，给出尺寸建议
+          document.getElementById('pattern-w').dataset.userEdited = '';
+          document.getElementById('pattern-h').dataset.userEdited = '';
+          lastImageAnalysis = analyzeImageContent(img);
+          showSmartHint(lastImageAnalysis);
         };
         img.src = ev.target.result;
       };
@@ -1227,9 +1404,10 @@
         remap[c.name] = centroidColors[best];
       }
 
-      // 应用重映射
+      // 应用重映射（K-means 阶段 grid 无 null，防御性跳过）
       const newCC = {};
       for (let y=0;y<gH;y++) for (let x=0;x<gW;x++) {
+        if (!grid[y][x]) continue;
         const nc = remap[grid[y][x].name] || grid[y][x];
         grid[y][x] = nc;
         newCC[nc.name] = (newCC[nc.name]||0) + 1;
@@ -1256,6 +1434,7 @@
 
       const newCC = {};
       for (let y=0;y<gH;y++) for (let x=0;x<gW;x++) {
+        if (!grid[y][x]) continue;
         const nc = remap[grid[y][x].name] || grid[y][x];
         grid[y][x] = nc;
         newCC[nc.name] = (newCC[nc.name]||0) + 1;
@@ -1319,6 +1498,17 @@
       // ③ 智能去重：RGB 距离 < 20 的颜色合并
       ({ grid, colorCount } = deduplicateColors(grid, gridW, gridH, colorCount, 20));
 
+      // ④ 主体模式：BFS 去除背景
+      if (document.getElementById('subject-mode').checked) {
+        const tol = parseInt(document.getElementById('subject-tolerance').value);
+        grid = applySubjectMode(grid, gridW, gridH, tol);
+        // 重新统计 colorCount（排除 null 格）
+        colorCount = {};
+        for (let y = 0; y < gridH; y++)
+          for (let x = 0; x < gridW; x++)
+            if (grid[y][x]) colorCount[grid[y][x].name] = (colorCount[grid[y][x].name]||0)+1;
+      }
+
       currentGrid = grid;
       currentGridW = gridW; currentGridH = gridH;
       currentCellSize = cellSize;
@@ -1347,6 +1537,7 @@
       for (let y = 0; y < gridH; y++) {
         for (let x = 0; x < gridW; x++) {
           const c = grid[y][x];
+          if (!c) { drawEmptyCell(ctx, x*cellSize, y*cellSize, cellSize); continue; }
           ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
           ctx.fillRect(x*cellSize, y*cellSize, cellSize, cellSize);
         }
@@ -1366,6 +1557,7 @@
         for (let y = 0; y < gridH; y++) {
           for (let x = 0; x < gridW; x++) {
             const c = grid[y][x];
+            if (!c) continue;
             const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
             ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
             ctx.fillText(c.name, x*cellSize + cellSize/2, y*cellSize + cellSize/2);
@@ -1375,7 +1567,7 @@
     }
 
     function renderStats(colorCount, gridW, gridH, boardSize, boardsX, boardsY, tierIndex) {
-      const total    = gridW * gridH;
+      const total    = Object.values(colorCount).reduce((s,v)=>s+v, 0); // 只统计有豆的格子
       const colorNum = Object.keys(colorCount).length;
       const tierInfo = KIT_TIERS[tierIndex];
 
@@ -1463,6 +1655,7 @@
       for (let y = 0; y < GH; y++) {
         for (let x = 0; x < GW; x++) {
           const c = currentGrid[y][x];
+          if (!c) { drawEmptyCell(ctx, x*CS, y*CS, CS); continue; }
           if (c.name === targetName) {
             ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
           } else {
@@ -1492,7 +1685,7 @@
         for (let y = 0; y < GH; y++) {
           for (let x = 0; x < GW; x++) {
             const c = currentGrid[y][x];
-            if (c.name !== targetName) continue;
+            if (!c || c.name !== targetName) continue;
             const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
             ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
             ctx.fillText(c.name, x*CS + CS/2, y*CS + CS/2);
@@ -1609,11 +1802,11 @@
 
     // ─── 图纸分享 ────────────────────────────────────────────────────────────────
     function encodePattern() {
-      // RLE 压缩：扫描行优先，相邻相同颜色合并
+      // RLE 压缩：扫描行优先，相邻相同颜色合并；65535 表示空格（主体模式）
       const flat = [];
       for (let y = 0; y < currentGridH; y++)
         for (let x = 0; x < currentGridW; x++)
-          flat.push(COLOR_IDX[currentGrid[y][x].name]);
+          flat.push(currentGrid[y][x] ? COLOR_IDX[currentGrid[y][x].name] : 65535);
 
       const runs = [];
       let i = 0;
@@ -1663,8 +1856,8 @@
         for (let y = 0; y < p.h; y++) {
           const row = [];
           for (let x = 0; x < p.w; x++) {
-            const name = COLOR_NAMES[flat[pos++]];
-            row.push(COLOR_MAP[name]);
+            const idx = flat[pos++];
+            row.push(idx === 65535 ? null : COLOR_MAP[COLOR_NAMES[idx]]);
           }
           grid.push(row);
         }
@@ -1681,12 +1874,13 @@
         currentShowLabels= p.sl === 1;
         highlightedColor = null;
 
-        // 重建 colorCount
+        // 重建 colorCount（跳过空格）
         const colorCount = {};
         for (let y = 0; y < p.h; y++)
           for (let x = 0; x < p.w; x++) {
-            const name = grid[y][x].name;
-            colorCount[name] = (colorCount[name] || 0) + 1;
+            const cell = grid[y][x];
+            if (!cell) continue;
+            colorCount[cell.name] = (colorCount[cell.name] || 0) + 1;
           }
         currentColorCount = colorCount;
 
@@ -1800,6 +1994,7 @@
       for (let y = 0; y < GH; y++) {
         for (let x = 0; x < GW; x++) {
           const c = currentGrid[y][x];
+          if (!c) { drawEmptyCell(ctx, x*CS, y*CS, CS); continue; }
           ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
           ctx.fillRect(x*CS, y*CS, CS, CS);
         }
@@ -1864,12 +2059,13 @@
           const bW     = endX - startX;
           const bH     = endY - startY;
 
-          // 统计该板用色
+          // 统计该板用色（跳过空格）
           const bColorCount = {};
           for (let y = startY; y < endY; y++)
             for (let x = startX; x < endX; x++) {
-              const name = currentGrid[y][x].name;
-              bColorCount[name] = (bColorCount[name] || 0) + 1;
+              const cell = currentGrid[y][x];
+              if (!cell) continue;
+              bColorCount[cell.name] = (bColorCount[cell.name] || 0) + 1;
             }
           const bColorNum = Object.keys(bColorCount).length;
 
@@ -1891,6 +2087,7 @@
           for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
               const clr = currentGrid[y][x];
+              if (!clr) { drawEmptyCell(ctx, (x-startX)*CS, (y-startY)*CS, CS); continue; }
               ctx.fillStyle = `rgb(${clr.r},${clr.g},${clr.b})`;
               ctx.fillRect((x-startX)*CS, (y-startY)*CS, CS, CS);
             }
@@ -1912,6 +2109,7 @@
             for (let y = startY; y < endY; y++) {
               for (let x = startX; x < endX; x++) {
                 const clr = currentGrid[y][x];
+                if (!clr) continue;
                 const lum = 0.299*clr.r + 0.587*clr.g + 0.114*clr.b;
                 ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
                 ctx.fillText(clr.name, (x-startX)*CS + CS/2, (y-startY)*CS + CS/2);
