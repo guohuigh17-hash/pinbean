@@ -1237,34 +1237,118 @@
       reader.readAsDataURL(file);
     });
 
+    // ── 颜色 K-means 合并（把已用色压缩到 maxColors 种）─────────────────────────
+    function reduceColorsKMeans(grid, gW, gH, colorCount, maxColors, palette) {
+      const usedNames  = Object.keys(colorCount).sort((a,b) => colorCount[b]-colorCount[a]);
+      if (usedNames.length <= maxColors) return { grid, colorCount };
+      const usedColors = usedNames.map(n => COLOR_MAP[n]);
+
+      // 初始质心：取使用量最多的 maxColors 个
+      let centroids = usedColors.slice(0, maxColors).map(c => ({r:c.r,g:c.g,b:c.b}));
+
+      for (let iter = 0; iter < 12; iter++) {
+        const sums = centroids.map(() => ({r:0,g:0,b:0,n:0}));
+        for (const c of usedColors) {
+          let best=0, bestD=Infinity;
+          for (let k=0;k<centroids.length;k++) {
+            const d=(c.r-centroids[k].r)**2+(c.g-centroids[k].g)**2+(c.b-centroids[k].b)**2;
+            if (d<bestD){bestD=d;best=k;}
+          }
+          sums[best].r+=c.r*colorCount[c.name];
+          sums[best].g+=c.g*colorCount[c.name];
+          sums[best].b+=c.b*colorCount[c.name];
+          sums[best].n+=colorCount[c.name];
+        }
+        centroids = sums.map((s,k) => s.n>0
+          ? {r:Math.round(s.r/s.n),g:Math.round(s.g/s.n),b:Math.round(s.b/s.n)}
+          : centroids[k]);
+      }
+
+      // 每个质心 → 最近 MARD 色
+      const centroidColors = centroids.map(c => closestColor(c.r,c.g,c.b,palette));
+
+      // 建立重映射表
+      const remap = {};
+      for (const c of usedColors) {
+        let best=0,bestD=Infinity;
+        for (let k=0;k<centroids.length;k++) {
+          const d=(c.r-centroids[k].r)**2+(c.g-centroids[k].g)**2+(c.b-centroids[k].b)**2;
+          if (d<bestD){bestD=d;best=k;}
+        }
+        remap[c.name] = centroidColors[best];
+      }
+
+      // 应用重映射
+      const newCC = {};
+      for (let y=0;y<gH;y++) for (let x=0;x<gW;x++) {
+        const nc = remap[grid[y][x].name] || grid[y][x];
+        grid[y][x] = nc;
+        newCC[nc.name] = (newCC[nc.name]||0) + 1;
+      }
+      return { grid, colorCount: newCC };
+    }
+
+    // ── 智能色彩去重（RGB 距离 < threshold 的颜色合并）────────────────────────────
+    function deduplicateColors(grid, gW, gH, colorCount, threshold) {
+      const names  = Object.keys(colorCount).sort((a,b) => colorCount[b]-colorCount[a]);
+      const thSq   = threshold * threshold;
+      const remap  = {};   // name → color 对象
+
+      for (let i=0;i<names.length;i++) {
+        const target = remap[names[i]] || COLOR_MAP[names[i]];
+        for (let j=i+1;j<names.length;j++) {
+          if (remap[names[j]]) continue;
+          const c = COLOR_MAP[names[j]];
+          const d = (target.r-c.r)**2+(target.g-c.g)**2+(target.b-c.b)**2;
+          if (d < thSq) remap[names[j]] = target;
+        }
+      }
+      if (!Object.keys(remap).length) return { grid, colorCount };
+
+      const newCC = {};
+      for (let y=0;y<gH;y++) for (let x=0;x<gW;x++) {
+        const nc = remap[grid[y][x].name] || grid[y][x];
+        grid[y][x] = nc;
+        newCC[nc.name] = (newCC[nc.name]||0) + 1;
+      }
+      return { grid, colorCount: newCC };
+    }
+
     document.getElementById('convert-btn').addEventListener('click', () => {
       if (!currentImageData) return;
       const boardSize  = parseInt(document.getElementById('board-type').value);
-      const gridW      = patternW;   // 来自模块2
-      const gridH      = patternH;
       const cellSize   = parseInt(document.getElementById('cell-size').value);
       const tierIndex  = parseInt(document.getElementById('kit-tier').value);
       const showLabels = document.getElementById('show-labels').checked;
+
+      // ① 保持原始宽高比，在 patternW × patternH 框内等比缩放
+      const src  = ppOffscreen || currentImageData;
+      const srcW = src instanceof HTMLCanvasElement ? src.width  : src.naturalWidth;
+      const srcH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
+      let gridW = patternW, gridH = patternH;
+      if (srcW > 0 && srcH > 0) {
+        const byW = { w: patternW, h: Math.max(1, Math.round(patternW * srcH / srcW)) };
+        const byH = { w: Math.max(1, Math.round(patternH * srcW / srcH)), h: patternH };
+        if (byW.h <= patternH) { gridW = byW.w; gridH = byW.h; }
+        else                   { gridW = byH.w; gridH = byH.h; }
+      }
 
       const palette = getPalette(tierIndex);
 
       const hc = document.getElementById('hidden-canvas');
       hc.width = gridW; hc.height = gridH;
       const hctx = hc.getContext('2d');
-      // 透明像素显示为白色背景
       hctx.fillStyle = '#ffffff';
       hctx.fillRect(0, 0, gridW, gridH);
-      // 优先使用预处理后的图像，否则用原图
-      hctx.drawImage(ppOffscreen || currentImageData, 0, 0, gridW, gridH);
+      hctx.drawImage(src, 0, 0, gridW, gridH);
       const imgData = hctx.getImageData(0, 0, gridW, gridH);
 
-      const grid = [];
-      const colorCount = {};
+      let grid = [];
+      let colorCount = {};
       for (let y = 0; y < gridH; y++) {
         const row = [];
         for (let x = 0; x < gridW; x++) {
           const i = (y * gridW + x) * 4;
-          // alpha 极低的像素视为白色（透明背景区域）
           const r = imgData.data[i+3] < 30 ? 255 : imgData.data[i];
           const g = imgData.data[i+3] < 30 ? 255 : imgData.data[i+1];
           const b = imgData.data[i+3] < 30 ? 255 : imgData.data[i+2];
@@ -1274,6 +1358,15 @@
         }
         grid.push(row);
       }
+
+      // ② 按模式限制颜色数量（K-means 合并）
+      const activePreset = document.querySelector('.preset-btn.active')?.dataset.preset;
+      const maxColorMap  = { simple: 8, standard: 16, detail: 24 };
+      const maxColors    = maxColorMap[activePreset] ?? 16;
+      ({ grid, colorCount } = reduceColorsKMeans(grid, gridW, gridH, colorCount, maxColors, palette));
+
+      // ③ 智能去重：RGB 距离 < 20 的颜色合并
+      ({ grid, colorCount } = deduplicateColors(grid, gridW, gridH, colorCount, 20));
 
       currentGrid = grid;
       currentGridW = gridW; currentGridH = gridH;
