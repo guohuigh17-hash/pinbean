@@ -1875,6 +1875,51 @@
       return { grid, colorCount };
     }
 
+    // ── 孤立像素去除（B&W 专用）────────────────────────────────────────────────
+    // 与 gridNoiseRemoval 的区别：只去除 4 方向无同色邻居的像素，保留线条
+    // gridNoiseRemoval 的 3×3 多数决会把 1 格宽的细线整体抹掉
+    function removeIsolatedPixels(grid, gW, gH) {
+      const DX = [0,1,0,-1], DY = [-1,0,1,0];
+      let changed = true;
+      while (changed) {
+        changed = false;
+        const next = grid.map(row => [...row]);
+        for (let y = 0; y < gH; y++) {
+          for (let x = 0; x < gW; x++) {
+            const c = grid[y][x];
+            if (!c) continue;
+            // 检查 4 方向是否有同色邻居
+            let hasNeighbor = false;
+            for (let d = 0; d < 4; d++) {
+              const nx = x+DX[d], ny = y+DY[d];
+              if (nx<0||ny<0||nx>=gW||ny>=gH) continue;
+              if (grid[ny][nx]?.name === c.name) { hasNeighbor = true; break; }
+            }
+            if (!hasNeighbor) {
+              // 孤立像素：改为 4 方向出现最多的颜色
+              const votes = {};
+              for (let d = 0; d < 4; d++) {
+                const nx = x+DX[d], ny = y+DY[d];
+                if (nx<0||ny<0||nx>=gW||ny>=gH) continue;
+                const nc = grid[ny][nx];
+                if (nc) votes[nc.name] = (votes[nc.name]||0)+1;
+              }
+              const bestName = Object.keys(votes).sort((a,b)=>votes[b]-votes[a])[0];
+              if (bestName) { next[y][x] = COLOR_MAP[bestName]; changed = true; }
+            }
+          }
+        }
+        grid = next;
+      }
+      const colorCount = {};
+      for (let y = 0; y < gH; y++)
+        for (let x = 0; x < gW; x++) {
+          const c = grid[y][x];
+          if (c) colorCount[c.name] = (colorCount[c.name]||0)+1;
+        }
+      return { grid, colorCount };
+    }
+
     document.getElementById('convert-btn').addEventListener('click', () => {
       if (!currentImageData) return;
       const boardSize  = parseInt(document.getElementById('board-type').value);
@@ -1958,20 +2003,17 @@
         }
       }
 
-      // ③ 噪点去除（卡通/极简，或 B&W 模式始终执行）
-      if (styleCfg.noise || bwMode === 'mono' || bwMode === 'gray') {
+      // ③ 噪点去除
+      if (styleCfg.noise) {
+        // 卡通/极简：用 3×3 多数决（色块图，不是细线，没问题）
         ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
+      } else if (bwMode === 'mono' || bwMode === 'gray') {
+        // 黑白模式：只去除完全孤立的像素，保留 1 格宽的细线
+        ({ grid, colorCount } = removeIsolatedPixels(grid, gridW, gridH));
       }
 
-      // ④ 自动合并噪点色（B&W 模式用更高阈值 25，彩色 10）
-      const rareThreshold = (bwMode === 'mono' || bwMode === 'gray') ? 25 : 10;
-      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareThreshold));
-
-      // B&W 再跑一轮去噪，彻底消除线稿抗锯齿产生的孤立灰点
-      if (bwMode === 'mono' || bwMode === 'gray') {
-        ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
-        ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareThreshold));
-      }
+      // ④ 自动合并噪点色（B&W 模式阈值 10，与彩色相同，已由孤立像素去除处理噪点）
+      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, 10));
 
       // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
       if (document.getElementById('subject-mode').checked) {
