@@ -42,23 +42,30 @@
     .color-swatch { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
     #hidden-canvas { display: none; }
 
-    /* ── 三模块配置 ── */
+    /* ── 配置区 ── */
+    .cfg-label { display: block; font-size: 12px; color: #999; margin-bottom: 5px; font-weight: 500; }
     .config-module { background: #f9f9f7; border-radius: 10px; padding: 14px; margin-bottom: 10px; border: 1px solid #eeeeea; }
     .module-title { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
     .num-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0d8; border-radius: 8px; font-size: 14px; background: #fff; }
-    .max-canvas-hint { margin-top: 10px; font-size: 13px; color: #666; }
-    .max-canvas-hint strong { color: #1a1a1a; }
 
     .custom-row { display: flex; align-items: center; gap: 8px; }
     .custom-row label { font-size: 13px; color: #666; white-space: nowrap; }
-    .custom-row input { width: 70px; }
     .custom-row .sep { font-size: 14px; color: #bbb; }
-    .feedback-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+    .feedback-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .fb-item { background: #fff; border: 1px solid #eeeeea; border-radius: 8px; padding: 10px 6px; text-align: center; }
     .fb-label { font-size: 11px; color: #aaa; margin-bottom: 5px; }
     .fb-value { font-size: 17px; font-weight: 700; color: #1a1a1a; line-height: 1; }
     .fb-sub { font-size: 10px; color: #ccc; margin-top: 3px; }
     .warn { color: #e07000 !important; }
+
+    /* ── 折叠区 ── */
+    .collapsible-section { border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+    .collapsible-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: #f9f9f7; border: none; cursor: pointer; font-size: 13px; color: #555; font-weight: 500; }
+    .collapsible-btn:hover { background: #f2f2ef; }
+    .collapsible-btn .caret { font-size: 11px; color: #bbb; transition: transform 0.15s; }
+    .collapsible-btn.open .caret { transform: rotate(90deg); }
+    .collapsible-body { display: none; padding: 0 12px 12px; background: #fff; }
+    .collapsible-body.open { display: block; }
 
     /* ── 板子拼接预览 ── */
     .board-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e8e8e0; }
@@ -200,81 +207,23 @@
         </div>
       </div>
 
-      <!-- 模块1：板子配置 -->
-      <div class="config-module">
-        <div class="module-title">① 板子配置</div>
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;align-items:end;">
-          <div class="control-group">
-            <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">板子型号</label>
-            <select id="board-type">
-              <option value="10">10×10 格板</option>
-              <option value="20">20×20 格板</option>
-              <option value="25" selected>25×25 格板</option>
-              <option value="52">52×52 格板</option>
-              <option value="104">104×104 格板</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">横向几块</label>
-            <input type="number" id="boards-x" value="2" min="1" max="20" class="num-input">
-          </div>
-          <div class="control-group">
-            <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">纵向几块</label>
-            <input type="number" id="boards-y" value="2" min="1" max="20" class="num-input">
-          </div>
-        </div>
-        <div class="max-canvas-hint">最大可用画布：<strong id="max-canvas-label">50 × 50 格</strong></div>
-      </div>
-
-      <!-- 模块2：成品尺寸 -->
-      <div class="config-module">
-        <div class="module-title">② 成品尺寸</div>
-        <div class="custom-row">
-          <input type="number" id="pattern-w" class="num-input" min="1" placeholder="宽">
+      <!-- 核心设置：成品尺寸 -->
+      <div style="margin-bottom:12px;">
+        <label class="cfg-label">成品尺寸</label>
+        <div class="custom-row" style="margin-bottom:4px;">
+          <input type="number" id="pattern-w" class="num-input" min="1" placeholder="宽" style="width:70px;">
           <span class="sep">×</span>
-          <input type="number" id="pattern-h" class="num-input" min="1" placeholder="高">
-          <label style="color:#666;">格</label>
+          <input type="number" id="pattern-h" class="num-input" min="1" placeholder="高" style="width:70px;">
+          <label style="color:#999;font-size:13px;">格</label>
         </div>
-        <div id="size-hint" style="font-size:12px;color:#aaa;margin-top:6px;">推荐 25×25，最大不超过 50×50 格</div>
+        <div id="size-hint" style="font-size:12px;color:#bbb;">推荐 25×25，最大不超过 50×50 格</div>
+        <div id="smart-hint" style="font-size:12px;color:#888;margin-top:5px;padding:6px 10px;background:#f7f7f5;border-radius:6px;display:none;line-height:1.5;"></div>
       </div>
 
-      <!-- 模块3：实时反馈 -->
-      <div class="feedback-grid">
-        <div class="fb-item">
-          <div class="fb-label">成品大小</div>
-          <div class="fb-value" id="fb-size">34×34</div>
-          <div class="fb-sub">格</div>
-        </div>
-        <div class="fb-item">
-          <div class="fb-label">预计用豆</div>
-          <div class="fb-value" id="fb-beads">1,156</div>
-          <div class="fb-sub">颗</div>
-        </div>
-        <div class="fb-item">
-          <div class="fb-label">占板面比例</div>
-          <div class="fb-value" id="fb-ratio">46%</div>
-          <div class="fb-sub" id="fb-ratio-sub">/ 2500 格</div>
-        </div>
-        <div class="fb-item">
-          <div class="fb-label">需要板子</div>
-          <div class="fb-value" id="fb-boards">4 块</div>
-          <div class="fb-sub" id="fb-boards-sub">2×2 排列</div>
-        </div>
-      </div>
-
-      <!-- 其他选项 -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:0.75rem;">
-        <div class="control-group">
-          <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">图纸清晰度</label>
-          <select id="cell-size">
-            <option value="6">6px（紧凑）</option>
-            <option value="9" selected>9px（标准）</option>
-            <option value="12">12px（清晰）</option>
-            <option value="16">16px（大图）</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">你的颜色套装</label>
+      <!-- 核心设置：颜色套装 + 处理模式 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>
+          <label class="cfg-label">你的颜色套装</label>
           <select id="kit-tier">
             <option value="0">221色（全部）</option>
             <option value="1">24色（系列1）</option>
@@ -287,26 +236,89 @@
             <option value="8">192色（系列1-6+9-10）</option>
           </select>
         </div>
-      </div>
-
-      <div class="toggle-row">
-        <label class="toggle-label">
-          <input type="checkbox" id="show-labels">
-          显示色号（打印图纸时使用）
-        </label>
-      </div>
-      <div class="toggle-row" style="margin-top:6px;">
-        <label class="toggle-label">
-          <input type="checkbox" id="subject-mode">
-          只拼主体（自动去除背景空位）
-        </label>
-        <div id="subject-tolerance-row" style="display:none;margin-top:6px;font-size:12px;color:#666;display:flex;align-items:center;gap:8px;">
-          <span>去除灵敏度</span>
-          <input type="range" id="subject-tolerance" min="10" max="100" step="5" value="50" style="flex:1;max-width:120px;">
-          <span id="subject-tolerance-val">50</span>
+        <div>
+          <label class="cfg-label">处理模式</label>
+          <select id="cell-size">
+            <option value="6">紧凑（省空间）</option>
+            <option value="9" selected>标准</option>
+            <option value="12">清晰（易辨认）</option>
+            <option value="16">大图（打印用）</option>
+          </select>
         </div>
       </div>
-      <div id="smart-hint" style="font-size:12px;color:#888;margin:6px 0 2px;padding:6px 10px;background:#f7f7f5;border-radius:6px;display:none;line-height:1.5;"></div>
+
+      <!-- 实时反馈：只保留两张卡片 -->
+      <div class="feedback-grid-2" style="margin-bottom:12px;">
+        <div class="fb-item">
+          <div class="fb-label">成品大小</div>
+          <div class="fb-value" id="fb-size">—</div>
+          <div class="fb-sub">格</div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-label">预计用豆</div>
+          <div class="fb-value" id="fb-beads">—</div>
+          <div class="fb-sub">颗</div>
+        </div>
+        <!-- 保留隐藏元素供 JS 写入，不展示 -->
+        <span id="fb-ratio" style="display:none"></span>
+        <span id="fb-ratio-sub" style="display:none"></span>
+        <span id="fb-boards" style="display:none"></span>
+        <span id="fb-boards-sub" style="display:none"></span>
+      </div>
+
+      <!-- 折叠：高级设置（板子配置） -->
+      <div class="collapsible-section" style="margin-bottom:8px;">
+        <button class="collapsible-btn" id="adv-toggle">
+          <span>高级设置</span><span class="caret">▸</span>
+        </button>
+        <div class="collapsible-body" id="adv-body">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-top:10px;">
+            <div>
+              <label class="cfg-label">板子型号</label>
+              <select id="board-type">
+                <option value="10">10×10 格板</option>
+                <option value="20">20×20 格板</option>
+                <option value="25" selected>25×25 格板</option>
+                <option value="52">52×52 格板</option>
+                <option value="104">104×104 格板</option>
+              </select>
+            </div>
+            <div>
+              <label class="cfg-label">横向几块</label>
+              <input type="number" id="boards-x" value="2" min="1" max="20" class="num-input">
+            </div>
+            <div>
+              <label class="cfg-label">纵向几块</label>
+              <input type="number" id="boards-y" value="2" min="1" max="20" class="num-input">
+            </div>
+          </div>
+          <div style="font-size:12px;color:#aaa;margin-top:8px;">最大可用画布：<strong id="max-canvas-label" style="color:#666;">50 × 50 格</strong></div>
+        </div>
+      </div>
+
+      <!-- 折叠：更多选项 -->
+      <div class="collapsible-section" style="margin-bottom:12px;">
+        <button class="collapsible-btn" id="more-toggle">
+          <span>更多选项</span><span class="caret">▸</span>
+        </button>
+        <div class="collapsible-body" id="more-body">
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            <label class="toggle-label">
+              <input type="checkbox" id="show-labels">
+              显示色号（打印图纸时使用）
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" id="subject-mode">
+              只拼主体（自动去除背景空位）
+            </label>
+            <div id="subject-tolerance-row" style="display:none;font-size:12px;color:#666;align-items:center;gap:8px;">
+              <span>去除灵敏度</span>
+              <input type="range" id="subject-tolerance" min="10" max="100" step="5" value="50" style="flex:1;max-width:120px;">
+              <span id="subject-tolerance-val">50</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="buttons">
         <button class="btn btn-primary" id="convert-btn" disabled>生成图纸</button>
@@ -1312,12 +1324,17 @@
       const nbY      = Math.ceil(raw_h / bs);
       const nbTotal  = nbX * nbY;
 
-      document.getElementById('fb-size').textContent      = `${raw_w}×${raw_h}`;
-      document.getElementById('fb-beads').textContent     = beads.toLocaleString();
-      document.getElementById('fb-ratio').textContent     = `${ratio}%`;
-      document.getElementById('fb-ratio-sub').textContent = `/ ${maxBeads.toLocaleString()} 格`;
-      document.getElementById('fb-boards').textContent    = `${nbTotal} 块`;
-      document.getElementById('fb-boards-sub').textContent= `${nbX}×${nbY} 排列`;
+      document.getElementById('fb-size').textContent  = `${raw_w}×${raw_h}`;
+      document.getElementById('fb-beads').textContent = beads.toLocaleString();
+      // 隐藏元素（供 renderStats 等内部逻辑使用）
+      const elRatio = document.getElementById('fb-ratio');
+      const elRatioSub = document.getElementById('fb-ratio-sub');
+      const elBoards = document.getElementById('fb-boards');
+      const elBoardsSub = document.getElementById('fb-boards-sub');
+      if (elRatio) elRatio.textContent = `${ratio}%`;
+      if (elRatioSub) elRatioSub.textContent = `/ ${maxBeads.toLocaleString()} 格`;
+      if (elBoards) elBoards.textContent = `${nbTotal} 块`;
+      if (elBoardsSub) elBoardsSub.textContent = `${nbX}×${nbY} 排列`;
 
       // 超出最大画布时警告
       const sizeEl = document.getElementById('fb-size');
@@ -1342,6 +1359,16 @@
     });
     document.getElementById('subject-tolerance').addEventListener('input', function() {
       document.getElementById('subject-tolerance-val').textContent = this.value;
+    });
+
+    // 折叠区开关
+    ['adv', 'more'].forEach(key => {
+      const btn  = document.getElementById(`${key}-toggle`);
+      const body = document.getElementById(`${key}-body`);
+      btn.addEventListener('click', () => {
+        const open = body.classList.toggle('open');
+        btn.classList.toggle('open', open);
+      });
     });
 
     // 初始化
