@@ -176,8 +176,8 @@
           <span style="font-size:12px;font-weight:600;color:#555;white-space:nowrap;">🎨 卡通化</span>
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#666;white-space:nowrap;">
             色块
-            <input type="range" id="pp-px-size" min="2" max="24" value="8" style="width:72px;accent-color:#1a1a1a;cursor:pointer;">
-            <span id="pp-px-size-val" style="min-width:18px;font-weight:600;color:#1a1a1a;">8</span>
+            <input type="range" id="pp-px-size" min="2" max="16" value="6" style="width:72px;accent-color:#1a1a1a;cursor:pointer;">
+            <span id="pp-px-size-val" style="min-width:18px;font-weight:600;color:#1a1a1a;">6</span>
           </label>
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#666;white-space:nowrap;">
             色数
@@ -190,7 +190,7 @@
             </select>
           </label>
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#666;white-space:nowrap;">
-            <input type="checkbox" id="pp-outline" checked style="accent-color:#1a1a1a;">
+            <input type="checkbox" id="pp-outline" style="accent-color:#1a1a1a;">
             轮廓线
           </label>
           <button class="btn pp-btn btn-primary" id="pp-cartoon-btn" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a;">应用卡通化</button>
@@ -1103,29 +1103,37 @@
         blockGrid.set(next);
       }
 
-      // ④ 渲染：块填色 + 轮廓增强（相邻块不同色时，边缘像素加深）
+      // ④ 渲染：纯色块填充（无描边）
       const result = new Uint8ClampedArray(src.length);
       for (let br = 0; br < bRows; br++) {
         for (let bc = 0; bc < bCols; bc++) {
-          const ci = blockGrid[br*bCols+bc];
-          const [R, G, B] = centroids[ci];
-          const bY0 = br*blockSize, bY1 = Math.min((br+1)*blockSize, H);
-          const bX0 = bc*blockSize, bX1 = Math.min((bc+1)*blockSize, W);
-          // 检查四方向是否有不同色块（用于轮廓）
-          const edT = outlineOn && br > 0        && blockGrid[(br-1)*bCols+bc] !== ci;
-          const edB = outlineOn && br < bRows-1  && blockGrid[(br+1)*bCols+bc] !== ci;
-          const edL = outlineOn && bc > 0        && blockGrid[br*bCols+(bc-1)] !== ci;
-          const edR = outlineOn && bc < bCols-1  && blockGrid[br*bCols+(bc+1)] !== ci;
-          for (let py = bY0; py < bY1; py++) {
-            for (let px = bX0; px < bX1; px++) {
+          const [R, G, B] = centroids[blockGrid[br*bCols+bc]];
+          for (let py = br*blockSize; py < Math.min((br+1)*blockSize, H); py++)
+            for (let px = bc*blockSize; px < Math.min((bc+1)*blockSize, W); px++) {
               const pi = (py*W+px)*4;
-              const isEdgePx = (edT && py===bY0) || (edB && py===bY1-1) ||
-                               (edL && px===bX0) || (edR && px===bX1-1);
-              const f = isEdgePx ? 0.45 : 1.0;
-              result[pi]   = Math.round(R * f);
-              result[pi+1] = Math.round(G * f);
-              result[pi+2] = Math.round(B * f);
-              result[pi+3] = 255;
+              result[pi]=R; result[pi+1]=G; result[pi+2]=B; result[pi+3]=255;
+            }
+        }
+      }
+
+      // ⑤ 轮廓增强（后处理：扫描相邻像素颜色不同处才描边，不描块内部）
+      if (outlineOn) {
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const pi = (y*W+x)*4;
+            let onBoundary = false;
+            if (x > 0) {
+              const li = pi - 4;
+              if (result[pi]!==result[li]||result[pi+1]!==result[li+1]||result[pi+2]!==result[li+2]) onBoundary=true;
+            }
+            if (!onBoundary && y > 0) {
+              const ui = ((y-1)*W+x)*4;
+              if (result[pi]!==result[ui]||result[pi+1]!==result[ui+1]||result[pi+2]!==result[ui+2]) onBoundary=true;
+            }
+            if (onBoundary) {
+              result[pi]=Math.round(result[pi]*0.5);
+              result[pi+1]=Math.round(result[pi+1]*0.5);
+              result[pi+2]=Math.round(result[pi+2]*0.5);
             }
           }
         }
