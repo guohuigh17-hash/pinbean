@@ -222,12 +222,12 @@
       <div class="config-module">
         <div class="module-title">② 成品尺寸</div>
         <div class="custom-row">
-          <label>自定义</label>
           <input type="number" id="pattern-w" class="num-input" min="1" placeholder="宽">
           <span class="sep">×</span>
           <input type="number" id="pattern-h" class="num-input" min="1" placeholder="高">
-          <label>格（不超过最大画布）</label>
+          <label style="color:#666;">格</label>
         </div>
+        <div id="size-hint" style="font-size:12px;color:#aaa;margin-top:6px;">推荐 25×25，最大不超过 50×50 格</div>
       </div>
 
       <!-- 模块3：实时反馈 -->
@@ -1117,11 +1117,15 @@
       const { bs, bx, by, maxW, maxH } = getBoardConfig();
       // 模块1：更新最大画布显示
       document.getElementById('max-canvas-label').textContent = `${maxW} × ${maxH} 格`;
-      // 如果输入框为空，预填推荐尺寸（2/3 最大画布）
+      // 推荐尺寸 = 单块板子大小（不铺满整板）
+      const recW = bs, recH = bs;
+      document.getElementById('size-hint').textContent =
+        `推荐 ${recW}×${recH}，最大不超过 ${maxW}×${maxH} 格`;
+      // 只在首次加载（输入框为空）时预填推荐值，之后不干预用户输入
       const wInput = document.getElementById('pattern-w');
       const hInput = document.getElementById('pattern-h');
-      if (!wInput.value) wInput.value = Math.max(1, Math.round(maxW * 2/3));
-      if (!hInput.value) hInput.value = Math.max(1, Math.round(maxH * 2/3));
+      if (!wInput.value) wInput.value = recW;
+      if (!hInput.value) hInput.value = recH;
       updateFeedback();
     }
 
@@ -1129,25 +1133,24 @@
       const { bs, maxW, maxH } = getBoardConfig();
       const raw_w = parseInt(document.getElementById('pattern-w').value) || 1;
       const raw_h = parseInt(document.getElementById('pattern-h').value) || 1;
-      const pW = Math.min(raw_w, maxW);
-      const pH = Math.min(raw_h, maxH);
-      patternW = pW; patternH = pH;
+      // 显示时用原始值，生成时再截断
+      patternW = raw_w; patternH = raw_h;
 
-      const beads    = pW * pH;
+      const beads    = raw_w * raw_h;
       const maxBeads = maxW * maxH;
       const ratio    = Math.round(beads / maxBeads * 100);
-      const nbX      = Math.ceil(pW / bs);
-      const nbY      = Math.ceil(pH / bs);
+      const nbX      = Math.ceil(raw_w / bs);
+      const nbY      = Math.ceil(raw_h / bs);
       const nbTotal  = nbX * nbY;
 
-      document.getElementById('fb-size').textContent      = `${pW}×${pH}`;
+      document.getElementById('fb-size').textContent      = `${raw_w}×${raw_h}`;
       document.getElementById('fb-beads').textContent     = beads.toLocaleString();
       document.getElementById('fb-ratio').textContent     = `${ratio}%`;
       document.getElementById('fb-ratio-sub').textContent = `/ ${maxBeads.toLocaleString()} 格`;
       document.getElementById('fb-boards').textContent    = `${nbTotal} 块`;
       document.getElementById('fb-boards-sub').textContent= `${nbX}×${nbY} 排列`;
 
-      // 超出警告
+      // 超出最大画布时警告
       const sizeEl = document.getElementById('fb-size');
       sizeEl.classList.toggle('warn', raw_w > maxW || raw_h > maxH);
     }
@@ -1267,15 +1270,18 @@
       const tierIndex  = parseInt(document.getElementById('kit-tier').value);
       const showLabels = document.getElementById('show-labels').checked;
 
-      // ① 保持原始宽高比，在 patternW × patternH 框内等比缩放
+      // ① 保持原始宽高比，在 patternW × patternH 框内等比缩放（截断到最大画布）
+      const { maxW: limitW, maxH: limitH } = getBoardConfig();
+      const clampedW = Math.min(patternW, limitW);
+      const clampedH = Math.min(patternH, limitH);
       const src  = ppOffscreen || currentImageData;
       const srcW = src instanceof HTMLCanvasElement ? src.width  : src.naturalWidth;
       const srcH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
-      let gridW = patternW, gridH = patternH;
+      let gridW = clampedW, gridH = clampedH;
       if (srcW > 0 && srcH > 0) {
-        const byW = { w: patternW, h: Math.max(1, Math.round(patternW * srcH / srcW)) };
-        const byH = { w: Math.max(1, Math.round(patternH * srcW / srcH)), h: patternH };
-        if (byW.h <= patternH) { gridW = byW.w; gridH = byW.h; }
+        const byW = { w: clampedW, h: Math.max(1, Math.round(clampedW * srcH / srcW)) };
+        const byH = { w: Math.max(1, Math.round(clampedH * srcW / srcH)), h: clampedH };
+        if (byW.h <= clampedH) { gridW = byW.w; gridH = byW.h; }
         else                   { gridW = byH.w; gridH = byH.h; }
       }
 
