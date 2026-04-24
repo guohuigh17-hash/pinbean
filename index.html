@@ -1581,6 +1581,32 @@
       return { grid, colorCount: newCC };
     }
 
+    // ── 噪点色合并：颗数 < minCount 的颜色合并到最近主色 ─────────────────────────
+    function mergeRareColors(grid, gW, gH, colorCount, minCount) {
+      const mainColors = Object.keys(colorCount).filter(n => colorCount[n] >= minCount).map(n => COLOR_MAP[n]);
+      if (!mainColors.length) return { grid, colorCount };
+      const remap = {};
+      for (const [name, cnt] of Object.entries(colorCount)) {
+        if (cnt >= minCount) continue;
+        const c = COLOR_MAP[name];
+        let best = mainColors[0], bestD = Infinity;
+        for (const m of mainColors) {
+          const d = (c.r-m.r)**2 + (c.g-m.g)**2 + (c.b-m.b)**2;
+          if (d < bestD) { bestD = d; best = m; }
+        }
+        remap[name] = best;
+      }
+      if (!Object.keys(remap).length) return { grid, colorCount };
+      const newCC = {};
+      for (let y = 0; y < gH; y++) for (let x = 0; x < gW; x++) {
+        if (!grid[y][x]) continue;
+        const nc = remap[grid[y][x].name] || grid[y][x];
+        grid[y][x] = nc;
+        newCC[nc.name] = (newCC[nc.name] || 0) + 1;
+      }
+      return { grid, colorCount: newCC };
+    }
+
     // ── Floyd-Steinberg 抖动（写实模式）─────────────────────────────────────────
     // 将量化误差扩散到相邻格，让有限颜色看起来更丰富
     function floydSteinbergDither(imgData, gW, gH, palette) {
@@ -1732,7 +1758,10 @@
       // ④ 噪点去除（卡通/极简）
       if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
 
-      // ④ 主体模式：BFS 去除背景
+      // ⑤ 自动合并噪点色：颗数 < 10 的颜色合并到最近主色
+      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, 10));
+
+      // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
       if (document.getElementById('subject-mode').checked) {
         const tol = parseInt(document.getElementById('subject-tolerance').value);
         grid = applySubjectMode(grid, gridW, gridH, tol);
@@ -1741,6 +1770,8 @@
         for (let y = 0; y < gridH; y++)
           for (let x = 0; x < gridW; x++)
             if (grid[y][x]) colorCount[grid[y][x].name] = (colorCount[grid[y][x].name]||0)+1;
+        // 主体裁剪后再次合并噪点色
+        ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, 10));
       }
 
       currentGrid = grid;
