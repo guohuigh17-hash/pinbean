@@ -1690,8 +1690,8 @@
         if (neutrals.length > 1) out.push(neutrals[neutrals.length - 1]);
         return out;
       }
-      // 'gray'：最多 5 档，按亮度均匀抽取
-      const count = Math.min(5, neutrals.length);
+      // 'gray'：最多 3 档（黑/中灰/白），线稿用更多档只会产生噪点
+      const count = Math.min(3, neutrals.length);
       if (neutrals.length <= count) return neutrals;
       const selected = [];
       for (let i = 0; i < count; i++) {
@@ -1937,8 +1937,9 @@
       }
 
       // ② 量化：抖动或直接映射，均使用智能选出的 selectedPalette
+      // B&W 模式禁用抖动——抖动是为了模拟中间色，线稿不需要，反而产生散点噪声
       let grid, colorCount;
-      if (styleCfg.dither) {
+      if (styleCfg.dither && bwMode === 'color') {
         ({ grid, colorCount } = floydSteinbergDither(imgData, gridW, gridH, selectedPalette));
       } else {
         grid = []; colorCount = {};
@@ -1957,11 +1958,20 @@
         }
       }
 
-      // ③ 噪点去除（卡通/极简）
-      if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
+      // ③ 噪点去除（卡通/极简，或 B&W 模式始终执行）
+      if (styleCfg.noise || bwMode === 'mono' || bwMode === 'gray') {
+        ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
+      }
 
-      // ④ 自动合并噪点色：颗数 < 10 的颜色合并到最近主色
-      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, 10));
+      // ④ 自动合并噪点色（B&W 模式用更高阈值 25，彩色 10）
+      const rareThreshold = (bwMode === 'mono' || bwMode === 'gray') ? 25 : 10;
+      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareThreshold));
+
+      // B&W 再跑一轮去噪，彻底消除线稿抗锯齿产生的孤立灰点
+      if (bwMode === 'mono' || bwMode === 'gray') {
+        ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
+        ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareThreshold));
+      }
 
       // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
       if (document.getElementById('subject-mode').checked) {
