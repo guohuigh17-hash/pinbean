@@ -1835,27 +1835,36 @@
 
       // 艺术风格配置
       const style = document.querySelector('.style-btn.active')?.dataset.style || 'simplified';
+      // rareMin：颗数低于此值的颜色合并到最近主色（写实模式放宽到 3，避免过度合并）
       const STYLE_CFG = {
-        realistic:  { n: null, dither: true,  labDedup: 2, noise: false },
-        simplified: { n: null, dither: true,  labDedup: 2, noise: false },
-        cartoon:    { n: 12,   dither: false, labDedup: 4, noise: true  },
-        minimal:    { n: 6,    dither: false, labDedup: 6, noise: true  },
+        realistic:  { useFullPalette: true,  dither: false, labDedup: null, noise: false, rareMin: 3  },
+        simplified: { useFullPalette: false, dither: true,  labDedup: 2,   noise: false, rareMin: 10 },
+        cartoon:    { useFullPalette: false, n: 12, dither: false, labDedup: 4, noise: true,  rareMin: 10 },
+        minimal:    { useFullPalette: false, n: 6,  dither: false, labDedup: 6, noise: true,  rareMin: 10 },
       };
       const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
 
-      // ① 智能选色：K-means 从图片中提取代表色 → 映射到色库 → LAB 去重
-      const totalCells = gridW * gridH;
-      const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
-      const targetN    = styleCfg.n || dynamicN;
-      // 多取一倍质心，去重后确保够用
-      let selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
-      selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
+      // ① 选色
+      let selectedPalette;
+      if (styleCfg.useFullPalette) {
+        // 写实：直接用完整色库，逐像素最近色匹配，不限颜色数量
+        selectedPalette = palette;
+      } else {
+        // 其他模式：K-means 从图片提取代表色 → 映射到色库 → LAB 去重
+        const totalCells = gridW * gridH;
+        const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
+        const targetN    = styleCfg.n || dynamicN;
+        selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
+        if (styleCfg.labDedup) selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
+      }
 
-      // ② 量化：抖动或直接映射，均使用智能选出的 selectedPalette
+      // ② 量化
       let grid, colorCount;
       if (styleCfg.dither) {
+        // 简化：Floyd-Steinberg 抖动，用 K-means 选出的色板
         ({ grid, colorCount } = floydSteinbergDither(imgData, gridW, gridH, selectedPalette));
       } else {
+        // 写实/卡通/极简：逐像素最近色匹配
         grid = []; colorCount = {};
         for (let y = 0; y < gridH; y++) {
           const row = [];
@@ -1875,8 +1884,8 @@
       // ③ 噪点去除（卡通/极简）
       if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
 
-      // ④ 自动合并噪点色：颗数 < 10 的颜色合并到最近主色
-      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, 10));
+      // ④ 自动合并噪点色（各模式阈值不同）
+      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, styleCfg.rareMin));
 
       // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
       if (document.getElementById('subject-mode').checked) {
