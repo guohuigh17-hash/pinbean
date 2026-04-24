@@ -47,15 +47,7 @@
     .num-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0d8; border-radius: 8px; font-size: 14px; background: #fff; }
     .max-canvas-hint { margin-top: 10px; font-size: 13px; color: #666; }
     .max-canvas-hint strong { color: #1a1a1a; }
-    .preset-btns { display: flex; gap: 8px; margin-bottom: 10px; }
-    .preset-btn { flex: 1; padding: 9px 6px; border-radius: 8px; border: 1.5px solid #e0e0d8; background: #fff; cursor: pointer; text-align: center; transition: all 0.15s; line-height: 1.3; }
-    .preset-btn:hover { border-color: #999; }
-    .preset-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
-    .preset-btn .p-name { font-size: 13px; font-weight: 600; }
-    .preset-btn .p-desc { font-size: 10px; color: #bbb; margin: 2px 0; line-height: 1.2; }
-    .preset-btn.active .p-desc { color: rgba(255,255,255,0.5); }
-    .preset-btn .p-size { font-size: 11px; color: #aaa; }
-    .preset-btn.active .p-size { color: rgba(255,255,255,0.6); }
+
     .custom-row { display: flex; align-items: center; gap: 8px; }
     .custom-row label { font-size: 13px; color: #666; white-space: nowrap; }
     .custom-row input { width: 70px; }
@@ -229,23 +221,6 @@
       <!-- 模块2：成品尺寸 -->
       <div class="config-module">
         <div class="module-title">② 成品尺寸</div>
-        <div class="preset-btns">
-          <button class="preset-btn" data-preset="simple">
-            <div class="p-name">入门</div>
-            <div class="p-desc">省豆 · 易拼</div>
-            <div class="p-size" id="ps-simple">17 × 17</div>
-          </button>
-          <button class="preset-btn active" data-preset="standard">
-            <div class="p-name">平衡</div>
-            <div class="p-desc">细节与难度兼顾</div>
-            <div class="p-size" id="ps-standard">34 × 34</div>
-          </button>
-          <button class="preset-btn" data-preset="detail">
-            <div class="p-name">还原</div>
-            <div class="p-desc">最高细节 · 耗豆多</div>
-            <div class="p-size" id="ps-detail">50 × 50</div>
-          </button>
-        </div>
         <div class="custom-row">
           <label>自定义</label>
           <input type="number" id="pattern-w" class="num-input" min="1" placeholder="宽">
@@ -1142,29 +1117,11 @@
       const { bs, bx, by, maxW, maxH } = getBoardConfig();
       // 模块1：更新最大画布显示
       document.getElementById('max-canvas-label').textContent = `${maxW} × ${maxH} 格`;
-      // 模块2：更新三个预设尺寸标签
-      const sW = Math.max(1, Math.round(maxW / 3)), sH = Math.max(1, Math.round(maxH / 3));
-      const tW = Math.max(1, Math.round(maxW * 2/3)), tH = Math.max(1, Math.round(maxH * 2/3));
-      document.getElementById('ps-simple').textContent   = `${sW} × ${sH}`;
-      document.getElementById('ps-standard').textContent = `${tW} × ${tH}`;
-      document.getElementById('ps-detail').textContent   = `${maxW} × ${maxH}`;
-      // 应用当前激活的预设（保持选中状态）
-      const active = document.querySelector('.preset-btn.active');
-      if (active) applyPreset(active.dataset.preset, false);
-      else updateFeedback();
-    }
-
-    function applyPreset(preset, setInputs = true) {
-      const { maxW, maxH } = getBoardConfig();
-      let w, h;
-      if (preset === 'simple')   { w = Math.max(1, Math.round(maxW/3));   h = Math.max(1, Math.round(maxH/3)); }
-      else if (preset === 'standard') { w = Math.max(1, Math.round(maxW*2/3)); h = Math.max(1, Math.round(maxH*2/3)); }
-      else                       { w = maxW; h = maxH; }
-      if (setInputs) {
-        document.getElementById('pattern-w').value = w;
-        document.getElementById('pattern-h').value = h;
-      }
-      patternW = w; patternH = h;
+      // 如果输入框为空，预填推荐尺寸（2/3 最大画布）
+      const wInput = document.getElementById('pattern-w');
+      const hInput = document.getElementById('pattern-h');
+      if (!wInput.value) wInput.value = Math.max(1, Math.round(maxW * 2/3));
+      if (!hInput.value) hInput.value = Math.max(1, Math.round(maxH * 2/3));
       updateFeedback();
     }
 
@@ -1199,22 +1156,11 @@
     ['board-type','boards-x','boards-y'].forEach(id =>
       document.getElementById(id).addEventListener('input', updateConfig));
 
-    document.querySelectorAll('.preset-btn').forEach(btn =>
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        applyPreset(btn.dataset.preset);
-      }));
-
     ['pattern-w','pattern-h'].forEach(id =>
-      document.getElementById(id).addEventListener('input', () => {
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        updateFeedback();
-      }));
+      document.getElementById(id).addEventListener('input', updateFeedback));
 
     // 初始化
     updateConfig();
-    applyPreset('standard');
 
     document.getElementById('file-input').addEventListener('change', e => {
       const file = e.target.files[0];
@@ -1359,10 +1305,9 @@
         grid.push(row);
       }
 
-      // ② 按模式限制颜色数量（K-means 合并）
-      const activePreset = document.querySelector('.preset-btn.active')?.dataset.preset;
-      const maxColorMap  = { simple: 8, standard: 16, detail: 24 };
-      const maxColors    = maxColorMap[activePreset] ?? 16;
+      // ② 限制颜色数量（K-means 合并），根据格数动态推算上限
+      const totalCells = gridW * gridH;
+      const maxColors  = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
       ({ grid, colorCount } = reduceColorsKMeans(grid, gridW, gridH, colorCount, maxColors, palette));
 
       // ③ 智能去重：RGB 距离 < 20 的颜色合并
