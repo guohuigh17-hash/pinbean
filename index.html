@@ -59,7 +59,13 @@
     .warn { color: #e07000 !important; }
 
     /* ── 艺术风格按钮 ── */
-    .style-btns { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+    .style-btns { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; }
+    /* ── 线稿模式参数面板 ── */
+    .lineart-params { background:#f9f9f7; border:1px solid #eeeeea; border-radius:10px; padding:12px; margin-top:8px; display:none; }
+    .lineart-params.visible { display:block; }
+    .la-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; align-items:end; }
+    .la-item label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
+    .la-item .la-val { font-size:12px; font-weight:600; color:#1a1a1a; margin-left:4px; }
     .style-btn { padding: 8px 4px; border-radius: 8px; border: 1.5px solid #e0e0d8; background: #fff; cursor: pointer; text-align: center; transition: all 0.12s; }
     .style-btn:hover { border-color: #bbb; }
     .style-btn.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
@@ -253,6 +259,34 @@
             <div class="style-name">极简</div>
             <div class="style-desc">极少色·新手</div>
           </button>
+          <button class="style-btn" data-style="lineart">
+            <div class="style-name">线稿</div>
+            <div class="style-desc">黑线稿·表情包</div>
+          </button>
+        </div>
+        <!-- 线稿模式参数（仅线稿模式下显示） -->
+        <div class="lineart-params" id="lineart-params">
+          <div class="la-row">
+            <div class="la-item">
+              <label>黑线阈值 <span class="la-val" id="la-thresh-val">120</span></label>
+              <input type="range" id="la-thresh" min="60" max="180" value="120" style="width:100%">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#bbb;margin-top:2px;"><span>亮60</span><span>暗180</span></div>
+            </div>
+            <div class="la-item">
+              <label>线条加粗</label>
+              <select id="la-dilate" style="width:100%;padding:6px 8px;border:1px solid #e0e0d8;border-radius:8px;font-size:13px;">
+                <option value="0">不加粗 0px</option>
+                <option value="1" selected>加粗 1px</option>
+                <option value="2">加粗 2px</option>
+                <option value="3">加粗 3px</option>
+              </select>
+            </div>
+            <div class="la-item">
+              <label>格子黑占比 <span class="la-val" id="la-ratio-val">6%</span></label>
+              <input type="range" id="la-ratio" min="3" max="20" value="6" style="width:100%">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#bbb;margin-top:2px;"><span>敏感3%</span><span>严格20%</span></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1470,8 +1504,17 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        document.getElementById('lineart-params').classList.toggle('visible', btn.dataset.style === 'lineart');
       })
     );
+
+    // 线稿参数滑杆实时显示
+    document.getElementById('la-thresh').addEventListener('input', e => {
+      document.getElementById('la-thresh-val').textContent = e.target.value;
+    });
+    document.getElementById('la-ratio').addEventListener('input', e => {
+      document.getElementById('la-ratio-val').textContent = e.target.value + '%';
+    });
 
     // 初始化
     updateConfig();
@@ -1605,6 +1648,76 @@
         newCC[nc.name] = (newCC[nc.name] || 0) + 1;
       }
       return { grid, colorCount: newCC };
+    }
+
+    // ── 线稿模式：高分辨率黑线 mask → 格子黑占比 → 黑/白强制映射 ────────────────
+    function convertLineArt(src, gridW, gridH, palette, threshold, dilate, blackRatioThresh) {
+      // 在源图分辨率上工作，避免缩小时细线被平均掉
+      const hiW = src instanceof HTMLCanvasElement ? src.width  : src.naturalWidth;
+      const hiH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
+      const hiC = document.createElement('canvas');
+      hiC.width = hiW; hiC.height = hiH;
+      const hiCtx = hiC.getContext('2d');
+      hiCtx.fillStyle = '#ffffff';
+      hiCtx.fillRect(0, 0, hiW, hiH);
+      hiCtx.drawImage(src, 0, 0);
+      const hiData = hiCtx.getImageData(0, 0, hiW, hiH).data;
+
+      // 建立黑线 mask
+      const mask = new Uint8Array(hiW * hiH);
+      for (let i = 0; i < hiW * hiH; i++) {
+        const a = hiData[i*4+3];
+        if (a < 30) { mask[i] = 0; continue; }
+        const gray = 0.299 * hiData[i*4] + 0.587 * hiData[i*4+1] + 0.114 * hiData[i*4+2];
+        mask[i] = gray < threshold ? 1 : 0;
+      }
+
+      // 膨胀（dilate px 方形核）
+      let activeMask = mask;
+      if (dilate > 0) {
+        activeMask = new Uint8Array(hiW * hiH);
+        for (let y = 0; y < hiH; y++) {
+          for (let x = 0; x < hiW; x++) {
+            let hit = 0;
+            outer: for (let dy = -dilate; dy <= dilate && !hit; dy++) {
+              for (let dx = -dilate; dx <= dilate && !hit; dx++) {
+                const ny = y + dy, nx = x + dx;
+                if (ny >= 0 && ny < hiH && nx >= 0 && nx < hiW && mask[ny * hiW + nx]) hit = 1;
+              }
+            }
+            activeMask[y * hiW + x] = hit;
+          }
+        }
+      }
+
+      // MARD 黑色 / 白色
+      const mardBlack = closestColor(0, 0, 0, palette);
+      const mardWhite = closestColor(255, 255, 255, palette);
+
+      // 逐格子统计 mask 占比
+      const grid = [];
+      const colorCount = {};
+      for (let gy = 0; gy < gridH; gy++) {
+        const row = [];
+        for (let gx = 0; gx < gridW; gx++) {
+          const x0 = Math.floor(gx * hiW / gridW);
+          const x1 = Math.max(x0 + 1, Math.floor((gx + 1) * hiW / gridW));
+          const y0 = Math.floor(gy * hiH / gridH);
+          const y1 = Math.max(y0 + 1, Math.floor((gy + 1) * hiH / gridH));
+          let blacks = 0, total = 0;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              if (activeMask[py * hiW + px]) blacks++;
+              total++;
+            }
+          }
+          const cell = (total > 0 && blacks / total >= blackRatioThresh) ? mardBlack : mardWhite;
+          row.push(cell);
+          colorCount[cell.name] = (colorCount[cell.name] || 0) + 1;
+        }
+        grid.push(row);
+      }
+      return { grid, colorCount };
     }
 
     // ── RGB → LAB 色彩空间转换 ──────────────────────────────────────────────────
@@ -1835,59 +1948,65 @@
 
       // 艺术风格配置
       const style = document.querySelector('.style-btn.active')?.dataset.style || 'simplified';
-      // rareMin：颗数低于此值的颜色合并到最近主色（写实模式放宽到 3，避免过度合并）
-      const STYLE_CFG = {
-        realistic:  { useFullPalette: true,  dither: false, labDedup: null, noise: false, rareMin: 3  },
-        simplified: { useFullPalette: false, dither: true,  labDedup: 2,   noise: false, rareMin: 10 },
-        cartoon:    { useFullPalette: false, n: 12, dither: false, labDedup: 4, noise: true,  rareMin: 10 },
-        minimal:    { useFullPalette: false, n: 6,  dither: false, labDedup: 6, noise: true,  rareMin: 10 },
-      };
-      const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
 
-      // ① 选色
-      let selectedPalette;
-      if (styleCfg.useFullPalette) {
-        // 写实：直接用完整色库，逐像素最近色匹配，不限颜色数量
-        selectedPalette = palette;
-      } else {
-        // 其他模式：K-means 从图片提取代表色 → 映射到色库 → LAB 去重
-        const totalCells = gridW * gridH;
-        const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
-        const targetN    = styleCfg.n || dynamicN;
-        selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
-        if (styleCfg.labDedup) selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
-      }
-
-      // ① 量化
       let grid, colorCount;
-      const useDither = styleCfg.dither;
-      if (useDither) {
-        // 简化：Floyd-Steinberg 抖动，用 K-means 选出的色板
-        ({ grid, colorCount } = floydSteinbergDither(imgData, gridW, gridH, selectedPalette));
+
+      if (style === 'lineart') {
+        // ── 线稿模式：高分辨率黑线 mask → 格子黑占比判断 ──────────────────────────
+        const laThresh = parseInt(document.getElementById('la-thresh').value);    // 黑线阈值
+        const laDilate = parseInt(document.getElementById('la-dilate').value);    // 膨胀像素
+        const laRatio  = parseInt(document.getElementById('la-ratio').value) / 100; // 格子黑占比
+        ({ grid, colorCount } = convertLineArt(src, gridW, gridH, palette, laThresh, laDilate, laRatio));
       } else {
-        // 写实/卡通/极简：逐像素最近色匹配
-        grid = []; colorCount = {};
-        for (let y = 0; y < gridH; y++) {
-          const row = [];
-          for (let x = 0; x < gridW; x++) {
-            const i = (y * gridW + x) * 4;
-            const r = imgData.data[i+3] < 30 ? 255 : imgData.data[i];
-            const g = imgData.data[i+3] < 30 ? 255 : imgData.data[i+1];
-            const b = imgData.data[i+3] < 30 ? 255 : imgData.data[i+2];
-            const c = closestColor(r, g, b, selectedPalette);
-            row.push(c);
-            colorCount[c.name] = (colorCount[c.name] || 0) + 1;
-          }
-          grid.push(row);
+        // rareMin：颗数低于此值的颜色合并到最近主色（写实模式放宽到 3，避免过度合并）
+        const STYLE_CFG = {
+          realistic:  { useFullPalette: true,  dither: false, labDedup: null, noise: false, rareMin: 3  },
+          simplified: { useFullPalette: false, dither: true,  labDedup: 2,   noise: false, rareMin: 10 },
+          cartoon:    { useFullPalette: false, n: 12, dither: false, labDedup: 4, noise: true,  rareMin: 10 },
+          minimal:    { useFullPalette: false, n: 6,  dither: false, labDedup: 6, noise: true,  rareMin: 10 },
+        };
+        const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
+
+        // 选色
+        let selectedPalette;
+        if (styleCfg.useFullPalette) {
+          selectedPalette = palette;
+        } else {
+          const totalCells = gridW * gridH;
+          const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
+          const targetN    = styleCfg.n || dynamicN;
+          selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
+          if (styleCfg.labDedup) selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
         }
+
+        // 量化
+        const useDither = styleCfg.dither;
+        if (useDither) {
+          ({ grid, colorCount } = floydSteinbergDither(imgData, gridW, gridH, selectedPalette));
+        } else {
+          grid = []; colorCount = {};
+          for (let y = 0; y < gridH; y++) {
+            const row = [];
+            for (let x = 0; x < gridW; x++) {
+              const i = (y * gridW + x) * 4;
+              const r = imgData.data[i+3] < 30 ? 255 : imgData.data[i];
+              const g = imgData.data[i+3] < 30 ? 255 : imgData.data[i+1];
+              const b = imgData.data[i+3] < 30 ? 255 : imgData.data[i+2];
+              const c = closestColor(r, g, b, selectedPalette);
+              row.push(c);
+              colorCount[c.name] = (colorCount[c.name] || 0) + 1;
+            }
+            grid.push(row);
+          }
+        }
+
+        // 噪点去除（卡通/极简）
+        if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
+
+        // 自动合并噪点色
+        const rareMin = styleCfg.rareMin;
+        ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareMin));
       }
-
-      // ③ 噪点去除（卡通/极简）
-      if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
-
-      // ④ 自动合并噪点色
-      const rareMin = styleCfg.rareMin;
-      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareMin));
 
       // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
       if (document.getElementById('subject-mode').checked) {
