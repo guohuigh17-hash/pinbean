@@ -67,6 +67,17 @@
     .style-desc { font-size: 10px; color: #aaa; margin-top: 2px; line-height: 1.2; }
     .style-btn.active .style-desc { color: rgba(255,255,255,0.5); }
 
+    /* ── 黑白模式提示横幅 ── */
+    .bw-banner { background: #f3f3f0; border: 1.5px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .bw-banner-title { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px; }
+    .bw-btns { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+    .bw-btn { padding: 8px 4px; border-radius: 8px; border: 1.5px solid #e0e0d8; background: #fff; cursor: pointer; text-align: center; transition: all 0.12s; }
+    .bw-btn:hover { border-color: #bbb; }
+    .bw-btn.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+    .bw-name { font-size: 13px; font-weight: 600; }
+    .bw-desc { font-size: 10px; color: #aaa; margin-top: 2px; line-height: 1.2; }
+    .bw-btn.active .bw-desc { color: rgba(255,255,255,0.5); }
+
     /* ── 折叠区 ── */
     .collapsible-section { border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
     .collapsible-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: #f9f9f7; border: none; cursor: pointer; font-size: 13px; color: #555; font-weight: 500; }
@@ -353,6 +364,25 @@
               <span id="subject-tolerance-val">50</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 黑白图片检测横幅 -->
+      <div class="bw-banner" id="bw-banner" style="display:none;">
+        <div class="bw-banner-title">检测到黑白 / 灰度图片 — 选择处理方式：</div>
+        <div class="bw-btns">
+          <button class="bw-btn" data-bw="mono">
+            <div class="bw-name">纯黑白</div>
+            <div class="bw-desc">2色·线稿表情包</div>
+          </button>
+          <button class="bw-btn active" data-bw="gray">
+            <div class="bw-name">黑白灰</div>
+            <div class="bw-desc">3-5色·卡通简笔画</div>
+          </button>
+          <button class="bw-btn" data-bw="color">
+            <div class="bw-name">彩色模式</div>
+            <div class="bw-desc">忽略·正常处理</div>
+          </button>
         </div>
       </div>
 
@@ -1473,6 +1503,13 @@
       })
     );
 
+    document.querySelectorAll('.bw-btn').forEach(btn =>
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.bw-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      })
+    );
+
     // 初始化
     updateConfig();
 
@@ -1491,6 +1528,16 @@
             <p style="font-size: 12px; color: #aaa; margin-top: 2px;">点击重新选择</p>
           `;
           document.getElementById('convert-btn').disabled = false;
+          // 检测黑白/灰度图片
+          const avgSat = analyzeImageSaturation(img);
+          const bwBanner = document.getElementById('bw-banner');
+          if (avgSat < 0.12) {
+            bwBanner.style.display = 'block';
+            document.querySelectorAll('.bw-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector('.bw-btn[data-bw="gray"]').classList.add('active');
+          } else {
+            bwBanner.style.display = 'none';
+          }
           // 分析图片内容，给出尺寸建议
           document.getElementById('pattern-w').dataset.userEdited = '';
           document.getElementById('pattern-h').dataset.userEdited = '';
@@ -1605,6 +1652,55 @@
         newCC[nc.name] = (newCC[nc.name] || 0) + 1;
       }
       return { grid, colorCount: newCC };
+    }
+
+    // ── 黑白图片饱和度检测 ────────────────────────────────────────────────────────
+    function analyzeImageSaturation(img) {
+      const canvas = document.createElement('canvas');
+      const scale  = Math.min(1, 100 / Math.max(img.naturalWidth, img.naturalHeight));
+      canvas.width  = Math.max(1, Math.round(img.naturalWidth  * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx  = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let totalS = 0, count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i+3] < 30) continue;
+        const r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255;
+        const max = Math.max(r, g, b);
+        if (max > 0) { totalS += (max - Math.min(r,g,b)) / max; count++; }
+      }
+      return count > 0 ? totalS / count : 0;
+    }
+
+    // ── 黑白专用色板：从色库里筛选纯中性灰（低饱和），按亮度选 N 档 ─────────────
+    function getBwPalette(palette, mode) {
+      // 只保留几乎无彩色的颜色（max-min < 20 → 饱和度 < ~8%）
+      const neutrals = palette
+        .filter(c => Math.max(c.r,c.g,c.b) - Math.min(c.r,c.g,c.b) < 20)
+        .sort((a, b) => {
+          const la = 0.2126*a.r + 0.7152*a.g + 0.0722*a.b;
+          const lb = 0.2126*b.r + 0.7152*b.g + 0.0722*b.b;
+          return la - lb;
+        });
+      if (neutrals.length === 0) return palette; // 极端兜底
+      if (mode === 'mono') {
+        // 最暗 + 最亮 = 纯黑白
+        const out = [neutrals[0]];
+        if (neutrals.length > 1) out.push(neutrals[neutrals.length - 1]);
+        return out;
+      }
+      // 'gray'：最多 5 档，按亮度均匀抽取
+      const count = Math.min(5, neutrals.length);
+      if (neutrals.length <= count) return neutrals;
+      const selected = [];
+      for (let i = 0; i < count; i++) {
+        const idx = Math.round(i * (neutrals.length - 1) / (count - 1));
+        selected.push(neutrals[idx]);
+      }
+      // 去名称重复
+      const seen = new Set();
+      return selected.filter(c => seen.has(c.name) ? false : (seen.add(c.name), true));
     }
 
     // ── RGB → LAB 色彩空间转换 ──────────────────────────────────────────────────
@@ -1821,13 +1917,24 @@
       };
       const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
 
-      // ① 智能选色：K-means 从图片中提取代表色 → 映射到色库 → LAB 去重
+      // ① 选色：黑白模式直接用中性灰色板，彩色模式用 K-means 智能选色
+      const bwBannerEl = document.getElementById('bw-banner');
+      const bwMode = bwBannerEl.style.display !== 'none'
+        ? (document.querySelector('.bw-btn.active')?.dataset.bw || 'gray')
+        : 'color';
+
       const totalCells = gridW * gridH;
       const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
       const targetN    = styleCfg.n || dynamicN;
-      // 多取一倍质心，去重后确保够用
-      let selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
-      selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
+
+      let selectedPalette;
+      if (bwMode === 'mono' || bwMode === 'gray') {
+        selectedPalette = getBwPalette(palette, bwMode);
+      } else {
+        // 多取一倍质心，去重后确保够用
+        selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
+        selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
+      }
 
       // ② 量化：抖动或直接映射，均使用智能选出的 selectedPalette
       let grid, colorCount;
