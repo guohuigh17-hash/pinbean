@@ -31,7 +31,8 @@
     .btn-primary:hover { background: #333; }
     .btn-primary:disabled { background: #1a1a1a; }
     .output-area { margin-top: 1.5rem; display: none; }
-    #grid-canvas { image-rendering: pixelated; display: block; max-width: 100%; border-radius: 8px; border: 1px solid #e8e8e0; }
+    .grid-canvas-wrap { overflow-x: auto; width: 100%; margin-bottom: 1rem; border-radius: 8px; border: 1px solid #e8e8e0; }
+    #grid-canvas { image-rendering: pixelated; display: block; min-width: 100%; border-radius: 8px; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 1rem; }
     .stat-card { background: #f5f5f0; border-radius: 8px; padding: 12px; }
     .stat-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
@@ -103,7 +104,14 @@
     .color-chip.chip-dim { opacity: 0.35; }
 
     /* ── 导出 & 分享按钮区 ── */
-    .output-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0ec; }
+    .output-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0ec; align-items: center; }
+
+    /* ── 导出下拉菜单 ── */
+    .export-dropdown { position: relative; }
+    .export-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: #fff; border: 1px solid #e0e0d8; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); min-width: 160px; z-index: 100; overflow: hidden; }
+    .export-menu.open { display: block; }
+    .export-menu button { display: block; width: 100%; padding: 9px 14px; text-align: left; background: none; border: none; font-size: 13px; color: #333; cursor: pointer; }
+    .export-menu button:hover { background: #f5f5f2; }
 
     /* ── 分享弹窗 ── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
@@ -257,7 +265,7 @@
       <!-- 其他选项 -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:0.75rem;">
         <div class="control-group">
-          <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">每格像素大小</label>
+          <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">图纸清晰度</label>
           <select id="cell-size">
             <option value="6">6px（紧凑）</option>
             <option value="9" selected>9px（标准）</option>
@@ -266,7 +274,7 @@
           </select>
         </div>
         <div class="control-group">
-          <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">套装档位</label>
+          <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">你的颜色套装</label>
           <select id="kit-tier">
             <option value="0">221色（全部）</option>
             <option value="1">24色（系列1）</option>
@@ -306,21 +314,23 @@
       </div>
 
       <div class="output-area" id="output-area">
-        <!-- 镜像操作 -->
-        <div class="output-actions" style="margin-bottom:0.5rem;padding-bottom:0.5rem;border-bottom:none;">
+        <!-- 图纸工具栏：镜像 + 导出下拉 + 分享 -->
+        <div class="output-actions">
           <button class="btn" id="mirror-h-btn">⇔ 左右镜像</button>
           <button class="btn" id="mirror-v-btn">⇕ 上下镜像</button>
-        </div>
-        <!-- 导出与分享按钮 -->
-        <div class="output-actions">
-          <button class="btn" id="download-png-btn">下载 PNG 图纸</button>
-          <button class="btn" id="export-pdf-btn">导出 PDF</button>
-          <button class="btn" id="export-csv-btn">导出购物清单 CSV</button>
-          <button class="btn" id="export-txt-btn">导出购物清单 TXT</button>
+          <div class="export-dropdown" id="export-dropdown">
+            <button class="btn" id="export-toggle-btn">导出 ▾</button>
+            <div class="export-menu" id="export-menu">
+              <button id="download-png-btn">下载 PNG 图纸</button>
+              <button id="export-pdf-btn">导出 PDF</button>
+              <button id="export-csv-btn">购物清单 CSV</button>
+              <button id="export-txt-btn">购物清单 TXT</button>
+            </div>
+          </div>
           <button class="btn btn-primary" id="share-btn">分享图纸链接</button>
         </div>
 
-        <canvas id="grid-canvas"></canvas>
+        <div class="grid-canvas-wrap"><canvas id="grid-canvas"></canvas></div>
         <div class="stats" id="stats"></div>
         <div class="color-legend" id="color-legend"></div>
 
@@ -1925,10 +1935,20 @@
     }
 
     // ─── 按钮事件 ────────────────────────────────────────────────────────────────
-    document.getElementById('download-png-btn').addEventListener('click', exportPNG);
-    document.getElementById('export-pdf-btn').addEventListener('click', exportPDF);
-    document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
-    document.getElementById('export-txt-btn').addEventListener('click', exportTXT);
+    // 导出下拉菜单开关
+    document.getElementById('export-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('export-menu').classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+      document.getElementById('export-menu').classList.remove('open');
+    });
+
+    function exportAndClose(fn) { fn(); document.getElementById('export-menu').classList.remove('open'); }
+    document.getElementById('download-png-btn').addEventListener('click', () => exportAndClose(exportPNG));
+    document.getElementById('export-pdf-btn').addEventListener('click', () => exportAndClose(exportPDF));
+    document.getElementById('export-csv-btn').addEventListener('click', () => exportAndClose(exportCSV));
+    document.getElementById('export-txt-btn').addEventListener('click', () => exportAndClose(exportTXT));
 
     document.getElementById('share-btn').addEventListener('click', () => {
       const hash = encodePattern();
