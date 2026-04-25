@@ -1720,6 +1720,76 @@
       return { grid, colorCount };
     }
 
+    // ── 黑色细线保护：量化后用高分辨率源图纠正丢失的深色格子 ──────────────────────
+    // 原理：量化在缩小图上进行，细黑线被白底平均成灰色后映射到白色 MARD 色。
+    // 修复：量化结束后对每个"亮色格子"，回头查高分辨率源图里该格区域，
+    // 若深色像素占比 >= darkCellRatio，说明这里有细线，强制覆盖为色板里最深的颜色。
+    // 对彩色图安全：彩色暗部已经被量化到深色，cellLum < lightCellMaxLum 直接跳过。
+    function protectDarkLines(grid, gridW, gridH, colorCount, src, selectedPalette) {
+      const DARK_SRC_LUM    = 100;  // 源图像素亮度 < 此值 → 视为深色像素
+      const DARK_CELL_RATIO = 0.10; // 格子内深色像素比例 >= 10% → 判定为黑线格
+      const LIGHT_CELL_LUM  = 180;  // 只对量化结果亮度 > 此值的格子做保护（已是深色的格不动）
+
+      // 找出 selectedPalette 里最暗的颜色
+      let darkColor = null, minLum = Infinity;
+      for (const c of selectedPalette) {
+        const lum = 0.2126*c.r + 0.7152*c.g + 0.0722*c.b;
+        if (lum < minLum) { minLum = lum; darkColor = c; }
+      }
+      // 如果色板里没有足够深的颜色（亮度 >= 80），直接跳过保护逻辑
+      if (!darkColor || minLum >= 80) return { grid, colorCount };
+
+      // 在源图分辨率绘制，读像素
+      const hiW = src instanceof HTMLCanvasElement ? src.width  : src.naturalWidth;
+      const hiH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
+      const hiC = document.createElement('canvas');
+      hiC.width = hiW; hiC.height = hiH;
+      const hiCtx = hiC.getContext('2d');
+      hiCtx.fillStyle = '#ffffff';
+      hiCtx.fillRect(0, 0, hiW, hiH);
+      hiCtx.drawImage(src, 0, 0);
+      const hiData = hiCtx.getImageData(0, 0, hiW, hiH).data;
+
+      let changed = false;
+      for (let gy = 0; gy < gridH; gy++) {
+        for (let gx = 0; gx < gridW; gx++) {
+          const cell = grid[gy][gx];
+          if (!cell) continue;
+          // 只检查量化后亮色的格子（深色格已经正确，不动）
+          const cellLum = 0.2126*cell.r + 0.7152*cell.g + 0.0722*cell.b;
+          if (cellLum < LIGHT_CELL_LUM) continue;
+
+          // 该格子在源图里对应的像素范围
+          const x0 = Math.floor(gx * hiW / gridW);
+          const x1 = Math.max(x0 + 1, Math.floor((gx + 1) * hiW / gridW));
+          const y0 = Math.floor(gy * hiH / gridH);
+          const y1 = Math.max(y0 + 1, Math.floor((gy + 1) * hiH / gridH));
+          let darks = 0, total = 0;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const idx = (py * hiW + px) * 4;
+              total++;
+              if (hiData[idx+3] < 30) continue; // 透明 = 背景，不计入深色
+              const lum = 0.2126*hiData[idx] + 0.7152*hiData[idx+1] + 0.0722*hiData[idx+2];
+              if (lum < DARK_SRC_LUM) darks++;
+            }
+          }
+          if (total > 0 && darks / total >= DARK_CELL_RATIO) {
+            grid[gy][gx] = darkColor;
+            changed = true;
+          }
+        }
+      }
+
+      if (!changed) return { grid, colorCount };
+      // 重新统计 colorCount
+      const newCC = {};
+      for (let y = 0; y < gridH; y++)
+        for (let x = 0; x < gridW; x++)
+          if (grid[y][x]) newCC[grid[y][x].name] = (newCC[grid[y][x].name] || 0) + 1;
+      return { grid, colorCount: newCC };
+    }
+
     // ── RGB → LAB 色彩空间转换 ──────────────────────────────────────────────────
     function rgbToLab(r, g, b) {
       let rr = r/255, gg = g/255, bb = b/255;
@@ -2006,6 +2076,9 @@
         // 自动合并噪点色
         const rareMin = styleCfg.rareMin;
         ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareMin));
+
+        // 黑色细线保护：回查高分辨率源图，纠正被白底平均掉的深色细线格子
+        ({ grid, colorCount } = protectDarkLines(grid, gridW, gridH, colorCount, src, selectedPalette));
       }
 
       // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
