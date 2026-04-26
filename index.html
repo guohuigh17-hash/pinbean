@@ -6,77 +6,102 @@
   <title>MARD 拼豆图纸生成器</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; min-height: 100vh; padding: 2rem; }
-    .container { max-width: 820px; margin: 0 auto; }
-    h1 { font-size: 24px; font-weight: 600; margin-bottom: 0.25rem; }
-    .subtitle { font-size: 14px; color: #888; margin-bottom: 2rem; }
-    .card { background: #fff; border-radius: 12px; border: 1px solid #e8e8e0; padding: 1.5rem; margin-bottom: 1rem; }
-    .upload-area { border: 2px dashed #d0d0c8; border-radius: 10px; padding: 2.5rem; text-align: center; cursor: pointer; transition: background 0.15s; }
-    .upload-area:hover { background: #fafaf8; }
-    .upload-area svg { color: #aaa; margin: 0 auto 0.75rem; display: block; }
-    .upload-area p { font-size: 14px; color: #888; }
+    :root {
+      --ink: #20201d;
+      --muted: #74786f;
+      --line: #e6e2d8;
+      --paper: #fffdf8;
+      --soft: #f7f4ec;
+      --mint: #dff0e7;
+      --coral: #ffcfb7;
+      --gold: #f5c542;
+      --green: #2f7d4d;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(circle at 14px 14px, rgba(32,32,29,0.055) 1.2px, transparent 1.4px) 0 0/28px 28px,
+        linear-gradient(135deg,#fff8ec 0,#f6f3ea 36%,#edf7f1 68%,#eef4fb 100%);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 2.25rem;
+    }
+    .container { max-width: 1040px; margin: 0 auto; }
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 1rem;
+      padding: 0 4px;
+    }
+    .brand-kicker { font-size: 12px; font-weight: 800; color: var(--green); letter-spacing: 0.9px; text-transform: uppercase; margin-bottom: 6px; }
+    h1 { font-size: 32px; font-weight: 850; margin-bottom: 0.35rem; letter-spacing: 0; color: #171714; }
+    .subtitle { font-size: 14px; color: var(--muted); line-height: 1.6; }
+    .head-badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .head-badge { font-size: 12px; font-weight: 700; color: #4f554c; background: rgba(255,255,255,0.78); border: 1px solid rgba(80,87,72,0.12); border-radius: 999px; padding: 7px 11px; box-shadow: 0 8px 24px rgba(48,54,44,0.06); white-space: nowrap; }
+    .card { background: rgba(255,255,255,0.94); border-radius: 22px; border: 1px solid rgba(58,70,53,0.12); padding: 1.45rem; margin-bottom: 1rem; box-shadow: 0 24px 70px rgba(42,48,39,0.13); backdrop-filter: blur(10px); }
+    .upload-area { border: 1.5px dashed #bcb5a2; border-radius: 18px; padding: 2.45rem; text-align: center; cursor: pointer; transition: background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s; background: linear-gradient(180deg,#fffdf8,#fff8ed); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.85); }
+    .upload-area:hover { background: linear-gradient(180deg,#fff9eb,#f9fff8); border-color: #7f8b71; transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.9), 0 12px 30px rgba(55,62,48,0.08); }
+    .upload-area svg { color: #7f8b71; margin: 0 auto 0.75rem; display: block; filter: drop-shadow(0 6px 10px rgba(47,125,77,0.12)); }
+    .upload-area p { font-size: 14px; color: #6d7168; font-weight: 650; }
     .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 1rem 0 0.75rem; }
     .control-group label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
-    select { width: 100%; padding: 8px 10px; border: 1px solid #e0e0d8; border-radius: 8px; font-size: 14px; background: #fff; cursor: pointer; }
+    select { width: 100%; padding: 10px 11px; border: 1px solid #ded9cd; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer; color: var(--ink); box-shadow: 0 1px 0 rgba(255,255,255,0.9); }
     .tier-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e8f4ff; color: #0066cc; border: 1px solid #b3d9ff; margin-left: 6px; vertical-align: middle; }
     .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
     .toggle-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #555; cursor: pointer; user-select: none; }
     .toggle-label input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #1a1a1a; }
     .label-hint { font-size: 11px; color: #aaa; }
     .buttons { display: flex; gap: 8px; margin-bottom: 0; }
-    .btn { padding: 9px 18px; border-radius: 8px; font-size: 14px; cursor: pointer; border: 1px solid #e0e0d8; background: #fff; color: #1a1a1a; transition: background 0.15s; }
-    .btn:hover { background: #f5f5f0; }
+    .btn { padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: 1px solid #ded9cd; background: #fff; color: var(--ink); transition: background 0.15s, transform 0.15s, box-shadow 0.15s, border-color 0.15s; box-shadow: 0 1px 0 rgba(255,255,255,0.9); }
+    .btn:hover { background: #f8f6ef; border-color: #cfc7b8; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(50,54,45,0.08); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
-    .btn-primary:hover { background: #333; }
-    .btn-primary:disabled { background: #1a1a1a; }
+    .btn-primary { background: linear-gradient(135deg,#1f211d,#38412f); color: #fff; border-color: #20231d; box-shadow: 0 10px 24px rgba(32,35,29,0.18); }
+    .btn-primary:hover { background: linear-gradient(135deg,#2a2d27,#46523d); }
+    .btn-primary:disabled { background: #1a1a1a; transform: none; box-shadow: none; }
     .output-area { margin-top: 1.5rem; display: none; }
-    .grid-canvas-wrap { overflow-x: auto; width: 100%; margin-bottom: 1rem; border-radius: 8px; border: 1px solid #e8e8e0; }
-    #grid-canvas { image-rendering: pixelated; display: block; min-width: 100%; border-radius: 8px; }
+    .grid-canvas-wrap { overflow-x: auto; width: 100%; margin-bottom: 1rem; border-radius: 14px; border: 1px solid #ded9cd; background: #fff; padding: 10px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8), 0 14px 34px rgba(55,62,48,0.08); }
+    #grid-canvas { image-rendering: pixelated; display: block; min-width: 100%; border-radius: 10px; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 1rem; }
-    .stat-card { background: #f5f5f0; border-radius: 8px; padding: 12px; }
-    .stat-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
-    .stat-card .value { font-size: 20px; font-weight: 600; }
+    .stat-card { background: linear-gradient(180deg,#fff,#f6f4ee); border: 1px solid #ebe7dc; border-radius: 12px; padding: 13px; box-shadow: 0 8px 22px rgba(45,52,42,0.05); }
+    .stat-card .label { font-size: 12px; color: #858a7f; margin-bottom: 5px; font-weight: 700; }
+    .stat-card .value { font-size: 20px; font-weight: 800; color: #20221f; }
     .color-legend { margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 6px; }
-    .color-chip { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #555; background: #f5f5f0; padding: 4px 8px; border-radius: 20px; }
-    .color-swatch { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+    .color-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #555; background: rgba(255,255,255,0.82); padding: 5px 9px; border-radius: 999px; border: 1px solid rgba(73,78,68,0.08); box-shadow: 0 4px 12px rgba(45,52,42,0.04); }
+    .color-swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.14); flex-shrink: 0; box-shadow: inset 0 1px 2px rgba(255,255,255,0.55); }
     #hidden-canvas { display: none; }
 
     /* ── 配置区 ── */
-    .cfg-label { display: block; font-size: 12px; color: #999; margin-bottom: 5px; font-weight: 500; }
-    .config-module { background: #f9f9f7; border-radius: 10px; padding: 14px; margin-bottom: 10px; border: 1px solid #eeeeea; }
-    .module-title { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
-    .num-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0d8; border-radius: 8px; font-size: 14px; background: #fff; }
+    .cfg-label { display: block; font-size: 12px; color: #70766b; margin-bottom: 7px; font-weight: 800; }
+    .config-module { background: linear-gradient(180deg,#fffdf8,#f8f7f0); border-radius: 14px; padding: 14px; margin-bottom: 10px; border: 1px solid #ebe7dc; box-shadow: 0 8px 22px rgba(45,52,42,0.04); }
+    .module-title { font-size: 11px; font-weight: 850; color: #787f72; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+    .num-input { width: 100%; padding: 10px 11px; border: 1px solid #ded9cd; border-radius: 10px; font-size: 14px; background: #fff; color: var(--ink); }
 
     .custom-row { display: flex; align-items: center; gap: 8px; }
     .custom-row label { font-size: 13px; color: #666; white-space: nowrap; }
     .custom-row .sep { font-size: 14px; color: #bbb; }
-    .feedback-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .fb-item { background: #fff; border: 1px solid #eeeeea; border-radius: 8px; padding: 10px 6px; text-align: center; }
-    .fb-label { font-size: 11px; color: #aaa; margin-bottom: 5px; }
-    .fb-value { font-size: 17px; font-weight: 700; color: #1a1a1a; line-height: 1; }
+    .feedback-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .fb-item { background: linear-gradient(180deg,#fff,#f8faf6); border: 1px solid #e6eadf; border-radius: 12px; padding: 12px 8px; text-align: center; box-shadow: 0 8px 18px rgba(44,56,40,0.05); }
+    .fb-label { font-size: 11px; color: #858b7e; margin-bottom: 6px; font-weight: 800; }
+    .fb-value { font-size: 18px; font-weight: 850; color: #1d211c; line-height: 1; }
     .fb-sub { font-size: 10px; color: #ccc; margin-top: 3px; }
     .warn { color: #e07000 !important; }
 
     /* ── 艺术风格按钮 ── */
-    .style-btns { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
-    .style-btn { padding: 8px 4px; border-radius: 8px; border: 1.5px solid #e0e0d8; background: #fff; cursor: pointer; text-align: center; transition: all 0.12s; }
-    .style-btn:hover { border-color: #bbb; }
-    .style-btn.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
-    .style-name { font-size: 13px; font-weight: 600; }
-    .style-desc { font-size: 10px; color: #aaa; margin-top: 2px; line-height: 1.2; }
-    .style-btn.active .style-desc { color: rgba(255,255,255,0.5); }
-
-    /* ── 黑白检测横幅 ── */
-    .bw-banner { background:#f5f5f2; border:1.5px solid #ddd; border-radius:10px; padding:12px; margin-bottom:12px; }
-    .bw-banner-title { font-size:12px; font-weight:600; color:#666; margin-bottom:8px; }
-    .bw-btns { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
-    .bw-btn { padding:8px 4px; border-radius:8px; border:1.5px solid #e0e0d8; background:#fff; cursor:pointer; text-align:center; transition:all 0.12s; }
-    .bw-btn:hover { border-color:#bbb; }
-    .bw-btn.active { background:#1a1a1a; border-color:#1a1a1a; color:#fff; }
-    .bw-name { font-size:13px; font-weight:600; }
-    .bw-desc { font-size:10px; color:#aaa; margin-top:2px; line-height:1.2; }
-    .bw-btn.active .bw-desc { color:rgba(255,255,255,0.5); }
+    .style-btns { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
+    /* ── 线稿模式参数面板 ── */
+    .lineart-params { background:#fffdf8; border:1px solid #ebe7dc; border-radius:14px; padding:12px; margin-top:10px; display:none; box-shadow: 0 8px 18px rgba(45,52,42,0.04); }
+    .lineart-params.visible { display:block; }
+    .la-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; align-items:end; }
+    .la-item label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
+    .la-item .la-val { font-size:12px; font-weight:600; color:#1a1a1a; margin-left:4px; }
+    .style-btn { padding: 10px 6px; border-radius: 12px; border: 1px solid #e2ded3; background: linear-gradient(180deg,#fff,#fbfaf6); cursor: pointer; text-align: center; transition: all 0.14s; box-shadow: 0 5px 14px rgba(45,52,42,0.04); }
+    .style-btn:hover { border-color: #c8c1b2; transform: translateY(-1px); }
+    .style-btn.active { background: linear-gradient(135deg,#20231e,#44503b); border-color: #2f382b; color: #fff; box-shadow: 0 10px 22px rgba(38,47,34,0.18); }
+    .style-name { font-size: 13px; font-weight: 800; }
+    .style-desc { font-size: 10px; color: #9a9d94; margin-top: 3px; line-height: 1.25; }
+    .style-btn.active .style-desc { color: rgba(255,255,255,0.62); }
 
     /* ── 折叠区 ── */
     .collapsible-section { border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
@@ -89,34 +114,42 @@
 
     /* ── 板子拼接预览 ── */
     .board-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e8e8e0; }
-    .board-section-title { font-size: 15px; font-weight: 600; margin-bottom: 0.75rem; }
+    .board-section-title { font-size: 16px; font-weight: 850; margin-bottom: 0.75rem; color: #20221f; }
     .board-controls { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
     .board-controls .control-group { min-width: 160px; }
     .board-info { font-size: 13px; color: #666; padding: 8px 12px; background: #f5f5f0; border-radius: 8px; line-height: 1.6; }
     .board-info strong { color: #1a1a1a; }
     .board-overview-wrap { margin-top: 1.25rem; }
     .board-overview-wrap .section-label { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 8px; }
-    #board-overview-canvas { image-rendering: pixelated; display: block; max-width: 100%; border-radius: 8px; border: 2px solid #e8e8e0; }
+    #board-overview-canvas { image-rendering: pixelated; display: block; max-width: 100%; border-radius: 12px; border: 1px solid #ded9cd; background:#fff; padding: 8px; box-shadow: 0 12px 28px rgba(45,52,42,0.07); }
     .board-grid-wrap { margin-top: 1.5rem; }
     .board-grid-wrap .section-label { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 10px; }
     .board-grid { display: grid; gap: 16px; }
-    .board-card { background: #fafaf8; border: 1px solid #e8e8e0; border-radius: 10px; padding: 10px; }
+    .board-card { background: linear-gradient(180deg,#fffdf8,#f8f7f0); border: 1px solid #e8e2d6; border-radius: 14px; padding: 12px; box-shadow: 0 14px 32px rgba(45,52,42,0.07); }
     .board-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
     .board-card-num { font-size: 13px; font-weight: 700; color: #1a1a1a; }
     .board-card-sub { font-size: 11px; color: #999; }
-    .board-card canvas { image-rendering: pixelated; display: block; max-width: 100%; border-radius: 6px; border: 1px solid #e0e0d8; }
-    .board-card-colors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-    .board-card-colors .color-chip { font-size: 11px; padding: 2px 6px; }
-    .btn-dl-board { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid #e0e0d8; background: #fff; cursor: pointer; color: #555; }
+    .board-card canvas { image-rendering: pixelated; display: block; max-width: 100%; border-radius: 10px; border: 1px solid #ded9cd; background: #fff; }
+    .board-card-colors { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .board-card-colors .color-chip { font-size: 11px; padding: 2px 6px; border: 1px solid transparent; }
+    .board-card-colors .color-chip.chip-active { border-color: rgba(0,0,0,0.28); box-shadow: 0 0 0 2px rgba(255,214,102,0.9); }
+    .btn-dl-board { font-size: 11px; padding: 4px 9px; border-radius: 999px; border: 1px solid #ded9cd; background: #fff; cursor: pointer; color: #555; font-weight: 700; }
     .btn-dl-board:hover { background: #f5f5f0; }
 
     /* ── 购物清单 ── */
-    .shopping-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e8e8e0; }
-    .shopping-title { font-size: 15px; font-weight: 600; margin-bottom: 0.75rem; }
-    .shopping-summary { font-size: 13px; color: #666; margin-bottom: 0.75rem; padding: 8px 12px; background: #f9f9f7; border-radius: 8px; }
+    .shopping-section { margin-top: 1.5rem; padding: 1rem; border: 1px solid #e8e2d6; border-radius: 16px; background: linear-gradient(180deg,#fffdf8,#faf9f3); box-shadow: 0 12px 28px rgba(45,52,42,0.05); }
+    .shopping-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0.75rem; }
+    .shopping-title { font-size: 16px; font-weight: 850; }
+    .shopping-toggle { border: 1px solid #deded2; background: #fff; color: #444; border-radius: 999px; padding: 6px 11px; font-size: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+    .shopping-toggle:hover { background: #f5f5f0; border-color: #c8c8bc; }
+    .shopping-toggle .caret { display: inline-block; margin-left: 5px; transition: transform 0.22s ease; }
+    .shopping-toggle.open .caret { transform: rotate(180deg); }
+    .shopping-summary { font-size: 13px; color: #666; margin-bottom: 0.75rem; padding: 10px 12px; background: rgba(255,255,255,0.78); border: 1px solid #eee9de; border-radius: 12px; }
+    .shopping-table-wrap { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.32s ease, opacity 0.22s ease; }
+    .shopping-table-wrap.open { max-height: 1200px; opacity: 1; overflow: auto; }
     .shopping-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .shopping-table th { text-align: left; padding: 7px 10px; background: #f5f5f0; font-size: 11px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e8e8e0; }
-    .shopping-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0ec; vertical-align: middle; }
+    .shopping-table th { text-align: left; padding: 9px 10px; background: #f2f3ed; font-size: 11px; color: #7e8278; font-weight: 850; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e8e8e0; position: sticky; top: 0; }
+    .shopping-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0ec; vertical-align: middle; }
     .shopping-table tr:last-child td { border-bottom: none; }
     .shopping-table tr.row-missing td { background: #fffbf5; }
     .tag-have { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 10px; background: #e8f5e9; color: #2e7d32; font-weight: 600; }
@@ -125,17 +158,17 @@
 
     /* ── 颜色高亮 ── */
     .color-chip { cursor: pointer; transition: all 0.15s; }
-    .color-chip:hover { background: #e5e5e2; }
+    .color-chip:hover { background: #fff7e8; border-color: rgba(162,132,64,0.22); transform: translateY(-1px); }
     .color-chip.chip-active { background: #1a1a1a !important; color: #fff !important; }
     .color-chip.chip-active .color-swatch { border-color: rgba(255,255,255,0.35); }
     .color-chip.chip-dim { opacity: 0.35; }
 
     /* ── 导出 & 分享按钮区 ── */
-    .output-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0ec; align-items: center; }
+    .output-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; padding: 10px; border: 1px solid #ebe7dc; border-radius: 14px; background: #fffdf8; align-items: center; }
 
     /* ── 导出下拉菜单 ── */
     .export-dropdown { position: relative; }
-    .export-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; background: #fff; border: 1px solid #e0e0d8; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); min-width: 160px; z-index: 100; overflow: hidden; }
+    .export-menu { display: none; position: absolute; top: calc(100% + 6px); left: 0; background: #fff; border: 1px solid #ded9cd; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.14); min-width: 170px; z-index: 100; overflow: hidden; }
     .export-menu.open { display: block; }
     .export-menu button { display: block; width: 100%; padding: 9px 14px; text-align: left; background: none; border: none; font-size: 13px; color: #333; cursor: pointer; }
     .export-menu button:hover { background: #f5f5f2; }
@@ -143,7 +176,7 @@
     /* ── 分享弹窗 ── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
     .modal-overlay.hidden { display: none; }
-    .modal-box { background: #fff; border-radius: 14px; padding: 1.75rem; max-width: 500px; width: 92%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal-box { background: #fffdf8; border: 1px solid #ebe7dc; border-radius: 18px; padding: 1.75rem; max-width: 500px; width: 92%; box-shadow: 0 24px 70px rgba(0,0,0,0.22); }
     .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 0.5rem; }
     .modal-desc { font-size: 13px; color: #666; margin-bottom: 1rem; }
     .share-url-box { width: 100%; padding: 10px 12px; border: 1px solid #e0e0d8; border-radius: 8px; font-size: 12px; font-family: monospace; color: #555; background: #f9f9f7; resize: none; height: 76px; line-break: anywhere; }
@@ -163,12 +196,59 @@
     .pp-crop-bar { display: none; align-items: center; gap: 8px; margin-top: 8px; }
     .pp-crop-bar.visible { display: flex; }
     .pp-hint { font-size: 12px; color: #888; }
+
+    /* ── 首屏配置布局 ── */
+    .settings-grid { display: grid; grid-template-columns: minmax(0,1.05fr) minmax(0,1.1fr) minmax(0,0.95fr); gap: 10px; margin: 14px 0 12px; align-items: stretch; }
+    .setting-panel { background: linear-gradient(180deg,#fffdf8,#f8f7f0); border: 1px solid #e8e2d6; border-radius: 14px; padding: 13px; min-width: 0; box-shadow: 0 8px 20px rgba(45,52,42,0.04); }
+    .setting-panel .custom-row { min-height: 39px; }
+    .inline-inputs { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 8px; align-items: center; }
+    .inline-inputs .num-input { min-width: 0; }
+    .hint-text { font-size: 12px; color: #a1a091; margin-top: 7px; line-height: 1.45; }
+    .smart-reco { font-size:12px;color:#697066;margin:-4px 0 12px;padding:10px 12px;background:#f8fbf4;border:1px solid #e3eadb;border-radius:12px;display:none;line-height:1.55; }
+    .smart-reco strong { color:#2f7d4d; }
+    .smart-reco button { margin-left:8px;border:1px solid #cfdcc8;background:#fff;color:#2f6844;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:800;cursor:pointer; }
+    .smart-reco button:hover { background:#eef7ec; }
+    .board-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .options-panel { background: linear-gradient(180deg,#fffdf8,#f8f7f0); border: 1px solid #e8e2d6; border-radius: 14px; padding: 13px; margin-bottom: 12px; box-shadow: 0 8px 20px rgba(45,52,42,0.04); }
+    .options-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .options-row .toggle-label { background: #fff; border: 1px solid #ececdf; border-radius: 999px; padding: 9px 12px; font-weight: 700; }
+    .primary-controls { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    select:focus, .num-input:focus { outline: none; border-color: #8d866f; box-shadow: 0 0 0 3px rgba(141,134,111,0.14); }
+
+    @media (max-width: 820px) {
+      body { padding: 1rem; }
+      h1 { font-size: 24px; }
+      .page-head { display: block; }
+      .head-badges { justify-content: flex-start; margin-top: 10px; }
+      .card { padding: 1rem; border-radius: 14px; }
+      .settings-grid, .primary-controls { grid-template-columns: 1fr; }
+      .style-btns { grid-template-columns: repeat(2,1fr); }
+      .la-row { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2,1fr); }
+    }
+    @media (max-width: 520px) {
+      .board-pair, .feedback-grid-2 { grid-template-columns: 1fr; }
+      .head-badge { font-size: 11px; padding: 6px 9px; }
+      .shopping-head { align-items: flex-start; flex-direction: column; }
+      .buttons .btn { width: 100%; }
+      .upload-area { padding: 1.6rem 1rem; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🫘 MARD 拼豆图纸生成器</h1>
-    <p class="subtitle">上传图片，自动转换为 MARD 品牌拼豆格子图纸 · 221色完整色库</p>
+    <div class="page-head">
+      <div>
+        <div class="brand-kicker">MARD BEAD PATTERN STUDIO</div>
+        <h1>🫘 MARD 拼豆图纸生成器</h1>
+        <p class="subtitle">上传图片，自动转换为 MARD 品牌拼豆格子图纸 · 221色完整色库</p>
+      </div>
+      <div class="head-badges" aria-hidden="true">
+        <span class="head-badge">智能取色</span>
+        <span class="head-badge">板子拼接</span>
+        <span class="head-badge">购物清单</span>
+      </div>
+    </div>
 
     <div class="card">
       <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
@@ -231,18 +311,44 @@
         </div>
       </div>
 
-      <!-- 核心设置：成品尺寸 -->
-      <div style="margin-bottom:12px;">
-        <label class="cfg-label">成品尺寸</label>
-        <div class="custom-row" style="margin-bottom:4px;">
-          <input type="number" id="pattern-w" class="num-input" min="1" placeholder="宽" style="width:70px;">
-          <span class="sep">×</span>
-          <input type="number" id="pattern-h" class="num-input" min="1" placeholder="高" style="width:70px;">
-          <label style="color:#999;font-size:13px;">格</label>
+      <!-- 核心设置：成品尺寸 + 格板拼接 -->
+      <div class="settings-grid">
+        <div class="setting-panel">
+          <label class="cfg-label">成品尺寸</label>
+          <div class="inline-inputs">
+            <input type="number" id="pattern-w" class="num-input" min="1" placeholder="宽">
+            <span class="sep">×</span>
+            <input type="number" id="pattern-h" class="num-input" min="1" placeholder="高">
+            <label style="color:#999;font-size:13px;">格</label>
+          </div>
+          <div id="size-hint" class="hint-text">推荐 25×25，最大不超过 50×50 格</div>
         </div>
-        <div id="size-hint" style="font-size:12px;color:#bbb;">推荐 25×25，最大不超过 50×50 格</div>
-        <div id="smart-hint" style="font-size:12px;color:#888;margin-top:5px;padding:6px 10px;background:#f7f7f5;border-radius:6px;display:none;line-height:1.5;"></div>
+        <div class="setting-panel">
+          <label class="cfg-label">选择格子大小</label>
+          <select id="board-type">
+            <option value="10">10×10 格板</option>
+            <option value="20">20×20 格板</option>
+            <option value="25" selected>25×25 格板</option>
+            <option value="52">52×52 格板</option>
+            <option value="104">104×104 格板</option>
+          </select>
+          <div class="hint-text">最大可用画布：<strong id="max-canvas-label" style="color:#555;">50 × 50 格</strong></div>
+        </div>
+        <div class="setting-panel">
+          <label class="cfg-label">板子拼接</label>
+          <div class="board-pair">
+            <div>
+              <label class="cfg-label" style="font-size:11px;color:#999;">横向几块</label>
+              <input type="number" id="boards-x" value="2" min="1" max="20" class="num-input">
+            </div>
+            <div>
+              <label class="cfg-label" style="font-size:11px;color:#999;">纵向几块</label>
+              <input type="number" id="boards-y" value="2" min="1" max="20" class="num-input">
+            </div>
+          </div>
+        </div>
       </div>
+      <div id="smart-hint" class="smart-reco"></div>
 
       <!-- 艺术风格 -->
       <div style="margin-bottom:12px;">
@@ -264,11 +370,39 @@
             <div class="style-name">极简</div>
             <div class="style-desc">极少色·新手</div>
           </button>
+          <button class="style-btn" data-style="lineart">
+            <div class="style-name">线稿</div>
+            <div class="style-desc">黑线稿·表情包</div>
+          </button>
+        </div>
+        <!-- 线稿模式参数（仅线稿模式下显示） -->
+        <div class="lineart-params" id="lineart-params">
+          <div class="la-row">
+            <div class="la-item">
+              <label>黑线阈值 <span class="la-val" id="la-thresh-val">120</span></label>
+              <input type="range" id="la-thresh" min="60" max="180" value="120" style="width:100%">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#bbb;margin-top:2px;"><span>亮60</span><span>暗180</span></div>
+            </div>
+            <div class="la-item">
+              <label>线条加粗</label>
+              <select id="la-dilate" style="width:100%;padding:6px 8px;border:1px solid #e0e0d8;border-radius:8px;font-size:13px;">
+                <option value="0">不加粗 0px</option>
+                <option value="1" selected>加粗 1px</option>
+                <option value="2">加粗 2px</option>
+                <option value="3">加粗 3px</option>
+              </select>
+            </div>
+            <div class="la-item">
+              <label>格子黑占比 <span class="la-val" id="la-ratio-val">6%</span></label>
+              <input type="range" id="la-ratio" min="3" max="20" value="6" style="width:100%">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#bbb;margin-top:2px;"><span>敏感3%</span><span>严格20%</span></div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- 核心设置：颜色套装 + 处理模式 -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div class="primary-controls">
         <div>
           <label class="cfg-label">你的颜色套装</label>
           <select id="kit-tier">
@@ -313,76 +447,23 @@
         <span id="fb-boards-sub" style="display:none"></span>
       </div>
 
-      <!-- 折叠：高级设置（板子配置） -->
-      <div class="collapsible-section" style="margin-bottom:8px;">
-        <button class="collapsible-btn" id="adv-toggle">
-          <span>高级设置</span><span class="caret">▸</span>
-        </button>
-        <div class="collapsible-body" id="adv-body">
-          <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-top:10px;">
-            <div>
-              <label class="cfg-label">板子型号</label>
-              <select id="board-type">
-                <option value="10">10×10 格板</option>
-                <option value="20">20×20 格板</option>
-                <option value="25" selected>25×25 格板</option>
-                <option value="52">52×52 格板</option>
-                <option value="104">104×104 格板</option>
-              </select>
-            </div>
-            <div>
-              <label class="cfg-label">横向几块</label>
-              <input type="number" id="boards-x" value="2" min="1" max="20" class="num-input">
-            </div>
-            <div>
-              <label class="cfg-label">纵向几块</label>
-              <input type="number" id="boards-y" value="2" min="1" max="20" class="num-input">
-            </div>
+      <!-- 更多选项（直接展示） -->
+      <div class="options-panel">
+        <div class="module-title">更多选项</div>
+        <div class="options-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="show-labels">
+            显示色号（打印图纸时使用）
+          </label>
+          <label class="toggle-label">
+            <input type="checkbox" id="subject-mode">
+            只拼主体（自动去除背景空位）
+          </label>
+          <div id="subject-tolerance-row" style="display:none;font-size:12px;color:#666;align-items:center;gap:8px;background:#fff;border:1px solid #ececdf;border-radius:999px;padding:8px 11px;">
+            <span>去除灵敏度</span>
+            <input type="range" id="subject-tolerance" min="10" max="100" step="5" value="50" style="flex:1;max-width:120px;">
+            <span id="subject-tolerance-val">50</span>
           </div>
-          <div style="font-size:12px;color:#aaa;margin-top:8px;">最大可用画布：<strong id="max-canvas-label" style="color:#666;">50 × 50 格</strong></div>
-        </div>
-      </div>
-
-      <!-- 折叠：更多选项 -->
-      <div class="collapsible-section" style="margin-bottom:12px;">
-        <button class="collapsible-btn" id="more-toggle">
-          <span>更多选项</span><span class="caret">▸</span>
-        </button>
-        <div class="collapsible-body" id="more-body">
-          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
-            <label class="toggle-label">
-              <input type="checkbox" id="show-labels">
-              显示色号（打印图纸时使用）
-            </label>
-            <label class="toggle-label">
-              <input type="checkbox" id="subject-mode">
-              只拼主体（自动去除背景空位）
-            </label>
-            <div id="subject-tolerance-row" style="display:none;font-size:12px;color:#666;align-items:center;gap:8px;">
-              <span>去除灵敏度</span>
-              <input type="range" id="subject-tolerance" min="10" max="100" step="5" value="50" style="flex:1;max-width:120px;">
-              <span id="subject-tolerance-val">50</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 黑白图片检测横幅（上传后若检测到低饱和度自动显示） -->
-      <div class="bw-banner" id="bw-banner" style="display:none;">
-        <div class="bw-banner-title">检测到黑白 / 灰度图片 — 选择处理方式：</div>
-        <div class="bw-btns">
-          <button class="bw-btn active" data-bw="mono">
-            <div class="bw-name">纯黑白</div>
-            <div class="bw-desc">2色·线稿表情包</div>
-          </button>
-          <button class="bw-btn" data-bw="gray">
-            <div class="bw-name">黑白灰</div>
-            <div class="bw-desc">多档灰·卡通简笔</div>
-          </button>
-          <button class="bw-btn" data-bw="off">
-            <div class="bw-name">彩色模式</div>
-            <div class="bw-desc">忽略·正常处理</div>
-          </button>
         </div>
       </div>
 
@@ -413,14 +494,19 @@
 
         <!-- 购物清单 -->
         <div class="shopping-section" id="shopping-section" style="display:none">
-          <div class="shopping-title">🛒 购物清单</div>
+          <div class="shopping-head">
+            <div class="shopping-title">🛒 购物清单</div>
+            <button class="shopping-toggle" id="shopping-toggle" type="button">展开清单 <span class="caret">⌄</span></button>
+          </div>
           <div class="shopping-summary" id="shopping-summary"></div>
-          <table class="shopping-table">
-            <thead><tr>
-              <th>颜色</th><th>色号</th><th>中文名</th><th>需要颗数</th><th>建议包数</th><th>状态</th>
-            </tr></thead>
-            <tbody id="shopping-tbody"></tbody>
-          </table>
+          <div class="shopping-table-wrap" id="shopping-table-wrap">
+            <table class="shopping-table">
+              <thead><tr>
+                <th>颜色</th><th>色号</th><th>中文名</th><th>需要颗数</th><th>建议包数</th><th>状态</th>
+              </tr></thead>
+              <tbody id="shopping-tbody"></tbody>
+            </table>
+          </div>
         </div>
 
         <!-- 板子拼接预览（自动生成） -->
@@ -789,41 +875,119 @@
       return { colorComplexity: colorSet.size, edgeDensity, bgVariance };
     }
 
-    function showSmartHint(analysis) {
+    function setActiveStyle(style) {
+      document.querySelectorAll('.style-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.style === style);
+      });
+      document.getElementById('lineart-params').classList.toggle('visible', style === 'lineart');
+    }
+
+    function buildAutoRecommendation(src, analysis) {
+      const srcW = src instanceof HTMLCanvasElement ? src.width : src.naturalWidth;
+      const srcH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
+      const ratio = srcW && srcH ? srcW / srcH : 1;
+      const { colorComplexity, edgeDensity, bgVariance } = analysis;
+      const isSimple = colorComplexity < 120 && edgeDensity < 0.07;
+      const isLineLike = colorComplexity < 180 && edgeDensity > 0.13;
+      const isComplex = colorComplexity > 350 || edgeDensity > 0.16;
+
+      let boardSize = 25;
+      let longSide = 50;
+      let style = 'simplified';
+      let cellSize = 9;
+      let subjectMode = false;
+      let tolerance = 50;
+      let label = '均衡图案';
+
+      if (isSimple) {
+        longSide = 32;
+        style = 'cartoon';
+        cellSize = 12;
+        subjectMode = bgVariance < 900;
+        tolerance = 45;
+        label = '简单图案 / logo / 贴纸';
+      } else if (isLineLike) {
+        longSide = 45;
+        style = 'lineart';
+        cellSize = 12;
+        subjectMode = false;
+        label = '线稿 / 表情包';
+      } else if (isComplex) {
+        longSide = 78;
+        style = 'simplified';
+        cellSize = 9;
+        subjectMode = bgVariance < 1000;
+        tolerance = 55;
+        label = '照片 / 人像 / 细节图';
+      }
+
+      if (Math.max(srcW || 0, srcH || 0) > 1800 && isComplex) longSide = 90;
+      let recW, recH;
+      if (ratio >= 1) {
+        recW = longSide;
+        recH = Math.max(12, Math.round(longSide / ratio));
+      } else {
+        recH = longSide;
+        recW = Math.max(12, Math.round(longSide * ratio));
+      }
+
+      const boardsX = Math.max(1, Math.ceil(recW / boardSize));
+      const boardsY = Math.max(1, Math.ceil(recH / boardSize));
+      return { boardSize, boardsX, boardsY, recW, recH, style, cellSize, subjectMode, tolerance, label };
+    }
+
+    function applyAutoRecommendation(src, analysis, force = false) {
+      if (!src || !analysis) return null;
+      const rec = buildAutoRecommendation(src, analysis);
+      document.getElementById('board-type').value = rec.boardSize;
+      document.getElementById('boards-x').value = rec.boardsX;
+      document.getElementById('boards-y').value = rec.boardsY;
+      updateConfig();
+
+      const wEl = document.getElementById('pattern-w');
+      const hEl = document.getElementById('pattern-h');
+      if (force || !wEl.dataset.userEdited) wEl.value = rec.recW;
+      if (force || !hEl.dataset.userEdited) hEl.value = rec.recH;
+
+      document.getElementById('cell-size').value = rec.cellSize;
+      setActiveStyle(rec.style);
+      const subjectEl = document.getElementById('subject-mode');
+      subjectEl.checked = rec.subjectMode;
+      document.getElementById('subject-tolerance-row').style.display = rec.subjectMode ? 'flex' : 'none';
+      document.getElementById('subject-tolerance').value = rec.tolerance;
+      document.getElementById('subject-tolerance-val').textContent = rec.tolerance;
+      updateFeedback();
+      return rec;
+    }
+
+    function reapplyAutoRecommendation() {
+      const rec = applyAutoRecommendation(ppOffscreen || currentImageData, lastImageAnalysis, true);
+      if (rec) showSmartHint(lastImageAnalysis, rec);
+    }
+
+    function showSmartHint(analysis, recommendation = null) {
       const el = document.getElementById('smart-hint');
       if (!analysis) { el.style.display = 'none'; return; }
       const { colorComplexity, edgeDensity, bgVariance } = analysis;
-      const bs = parseInt(document.getElementById('board-type').value);
-      let icon, msg, recW, recH;
+      const rec = recommendation || buildAutoRecommendation(ppOffscreen || currentImageData, analysis);
+      const styleName = { realistic:'写实', simplified:'简化', cartoon:'卡通', minimal:'极简', lineart:'线稿' }[rec.style] || rec.style;
+      const subjectText = rec.subjectMode ? '，并开启只拼主体' : '';
+      let icon, msg;
 
       if (colorComplexity < 120 && edgeDensity < 0.07) {
-        // 简单图案：icon / logo / 贴纸
         icon = '🎯';
-        recW = recH = Math.max(15, Math.round(bs * 0.6));
-        msg = `图案简单（logo / 贴纸风格），推荐 ${recW}×${recH} 即可清晰还原。可开启「只拼主体」去掉背景。`;
+        msg = `识别为${rec.label}，已自动套用 ${rec.recW}×${rec.recH} 格、${rec.boardsX}×${rec.boardsY} 块板、${styleName}风格${subjectText}。`;
       } else if (colorComplexity > 350 || edgeDensity > 0.16) {
-        // 复杂图案：照片 / 人像
         icon = '🖼';
-        recW = recH = bs;
-        msg = `图案细节丰富（照片 / 人像），推荐至少 ${recW}×${recH} 以上。`;
-        if (bgVariance > 1800) msg += ' 四周背景较复杂，建议先裁图突出主体。';
+        msg = `识别为${rec.label}，已自动套用 ${rec.recW}×${rec.recH} 格、${rec.boardsX}×${rec.boardsY} 块板、${styleName}风格${subjectText}。`;
+        if (bgVariance > 1800) msg += ' 四周背景偏复杂，必要时可以先裁图突出主体。';
       } else {
-        // 中等
         icon = '✏️';
-        recW = recH = Math.round(bs * 0.8);
-        msg = `图案复杂度适中，推荐 ${recW}×${recH} 左右。`;
+        msg = `识别为${rec.label}，已自动套用 ${rec.recW}×${rec.recH} 格、${rec.boardsX}×${rec.boardsY} 块板、${styleName}风格${subjectText}。`;
       }
 
-      // 更新推荐尺寸输入框（如果用户还没改过就自动填）
-      const wEl = document.getElementById('pattern-w');
-      const hEl = document.getElementById('pattern-h');
-      const { maxW, maxH } = getBoardConfig();
-      if (!wEl.dataset.userEdited) wEl.value = Math.min(recW, maxW);
-      if (!hEl.dataset.userEdited) hEl.value = Math.min(recH, maxH);
-      updateFeedback();
-
       el.style.display = 'block';
-      el.innerHTML = `${icon} <strong>图片分析：</strong>${msg}`;
+      el.innerHTML = `${icon} <strong>自动推荐已应用：</strong>${msg} 复杂图片细节较多，自动推荐会尽量平衡效果和易拼程度；如果想更接近原图，可以适当调大成品尺寸。<button type="button" onclick="reapplyAutoRecommendation()">重新应用推荐</button>`;
     }
 
     // ─── 主体模式：从边缘 BFS 去除背景色格子 ────────────────────────────────────
@@ -1490,6 +1654,7 @@
     ['adv', 'more'].forEach(key => {
       const btn  = document.getElementById(`${key}-toggle`);
       const body = document.getElementById(`${key}-body`);
+      if (!btn || !body) return;
       btn.addEventListener('click', () => {
         const open = body.classList.toggle('open');
         btn.classList.toggle('open', open);
@@ -1498,17 +1663,17 @@
 
     document.querySelectorAll('.style-btn').forEach(btn =>
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        setActiveStyle(btn.dataset.style);
       })
     );
 
-    document.querySelectorAll('.bw-btn').forEach(btn =>
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.bw-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      })
-    );
+    // 线稿参数滑杆实时显示
+    document.getElementById('la-thresh').addEventListener('input', e => {
+      document.getElementById('la-thresh-val').textContent = e.target.value;
+    });
+    document.getElementById('la-ratio').addEventListener('input', e => {
+      document.getElementById('la-ratio-val').textContent = e.target.value + '%';
+    });
 
     // 初始化
     updateConfig();
@@ -1528,24 +1693,12 @@
             <p style="font-size: 12px; color: #aaa; margin-top: 2px;">点击重新选择</p>
           `;
           document.getElementById('convert-btn').disabled = false;
-          // 黑白检测
-          const avgSat = analyzeImageSaturation(img);
-          const bwBanner = document.getElementById('bw-banner');
-          if (avgSat < 0.12) {
-            console.log('[BW] 检测为黑白图，显示横幅');
-            bwBanner.style.display = 'block';
-            // 重置为默认选项（纯黑白）
-            document.querySelectorAll('.bw-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector('.bw-btn[data-bw="mono"]').classList.add('active');
-          } else {
-            console.log('[BW] 检测为彩色图，隐藏横幅');
-            bwBanner.style.display = 'none';
-          }
           // 分析图片内容，给出尺寸建议
           document.getElementById('pattern-w').dataset.userEdited = '';
           document.getElementById('pattern-h').dataset.userEdited = '';
           lastImageAnalysis = analyzeImageContent(img);
-          showSmartHint(lastImageAnalysis);
+          const recommendation = applyAutoRecommendation(img, lastImageAnalysis);
+          showSmartHint(lastImageAnalysis, recommendation);
         };
         img.src = ev.target.result;
       };
@@ -1632,58 +1785,6 @@
     }
 
     // ── 噪点色合并：颗数 < minCount 的颜色合并到最近主色 ─────────────────────────
-    // ── 黑白饱和度检测 ─────────────────────────────────────────────────────────
-    function analyzeImageSaturation(img) {
-      const canvas = document.createElement('canvas');
-      const scale  = Math.min(1, 100 / Math.max(img.naturalWidth, img.naturalHeight));
-      canvas.width  = Math.max(1, Math.round(img.naturalWidth  * scale));
-      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      let total = 0, count = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i+3] < 30) continue;
-        const r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255;
-        const max = Math.max(r,g,b);
-        if (max > 0) { total += (max - Math.min(r,g,b)) / max; count++; }
-      }
-      const avgSat = count > 0 ? total / count : 0;
-      console.log('[BW] analyzeImageSaturation → avgSat =', avgSat.toFixed(4), '(threshold 0.12)');
-      return avgSat;
-    }
-
-    // ── 黑白专用色板：只用 R≈G≈B 的中性灰豆号 ──────────────────────────────────
-    function getBwPalette(palette, mode) {
-      // max-min < 10 → 几乎无色倾向（排除浅紫灰/浅蓝灰等）
-      const neutrals = palette
-        .filter(c => Math.max(c.r,c.g,c.b) - Math.min(c.r,c.g,c.b) < 10)
-        .sort((a,b) => {
-          const la = 0.2126*a.r + 0.7152*a.g + 0.0722*a.b;
-          const lb = 0.2126*b.r + 0.7152*b.g + 0.0722*b.b;
-          return la - lb; // 由暗到亮
-        });
-      console.log('[BW] neutral MARD colors available:', neutrals.map(c=>c.name));
-      if (neutrals.length === 0) return palette; // 兜底
-      if (mode === 'mono') {
-        const out = [neutrals[0]]; // 最暗
-        if (neutrals.length > 1) out.push(neutrals[neutrals.length-1]); // 最亮
-        console.log('[BW] mono palette:', out.map(c=>c.name));
-        return out;
-      }
-      // 'gray'：最多取7档，按亮度均匀抽取
-      const count = Math.min(7, neutrals.length);
-      const selected = [];
-      for (let i = 0; i < count; i++) {
-        const idx = Math.round(i * (neutrals.length-1) / (count-1));
-        selected.push(neutrals[idx]);
-      }
-      const seen = new Set();
-      const result = selected.filter(c => seen.has(c.name) ? false : (seen.add(c.name), true));
-      console.log('[BW] gray palette:', result.map(c=>c.name));
-      return result;
-    }
-
     function mergeRareColors(grid, gW, gH, colorCount, minCount) {
       const mainColors = Object.keys(colorCount).filter(n => colorCount[n] >= minCount).map(n => COLOR_MAP[n]);
       if (!mainColors.length) return { grid, colorCount };
@@ -1706,6 +1807,146 @@
         grid[y][x] = nc;
         newCC[nc.name] = (newCC[nc.name] || 0) + 1;
       }
+      return { grid, colorCount: newCC };
+    }
+
+    // ── 线稿模式：高分辨率黑线 mask → 格子黑占比 → 黑/白强制映射 ────────────────
+    function convertLineArt(src, gridW, gridH, palette, threshold, dilate, blackRatioThresh) {
+      // 在源图分辨率上工作，避免缩小时细线被平均掉
+      const hiW = src instanceof HTMLCanvasElement ? src.width  : src.naturalWidth;
+      const hiH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
+      const hiC = document.createElement('canvas');
+      hiC.width = hiW; hiC.height = hiH;
+      const hiCtx = hiC.getContext('2d');
+      hiCtx.fillStyle = '#ffffff';
+      hiCtx.fillRect(0, 0, hiW, hiH);
+      hiCtx.drawImage(src, 0, 0);
+      const hiData = hiCtx.getImageData(0, 0, hiW, hiH).data;
+
+      // 建立黑线 mask
+      const mask = new Uint8Array(hiW * hiH);
+      for (let i = 0; i < hiW * hiH; i++) {
+        const a = hiData[i*4+3];
+        if (a < 30) { mask[i] = 0; continue; }
+        const gray = 0.299 * hiData[i*4] + 0.587 * hiData[i*4+1] + 0.114 * hiData[i*4+2];
+        mask[i] = gray < threshold ? 1 : 0;
+      }
+
+      // 膨胀（dilate px 方形核）
+      let activeMask = mask;
+      if (dilate > 0) {
+        activeMask = new Uint8Array(hiW * hiH);
+        for (let y = 0; y < hiH; y++) {
+          for (let x = 0; x < hiW; x++) {
+            let hit = 0;
+            outer: for (let dy = -dilate; dy <= dilate && !hit; dy++) {
+              for (let dx = -dilate; dx <= dilate && !hit; dx++) {
+                const ny = y + dy, nx = x + dx;
+                if (ny >= 0 && ny < hiH && nx >= 0 && nx < hiW && mask[ny * hiW + nx]) hit = 1;
+              }
+            }
+            activeMask[y * hiW + x] = hit;
+          }
+        }
+      }
+
+      // MARD 黑色 / 白色
+      const mardBlack = closestColor(0, 0, 0, palette);
+      const mardWhite = closestColor(255, 255, 255, palette);
+
+      // 逐格子统计 mask 占比
+      const grid = [];
+      const colorCount = {};
+      for (let gy = 0; gy < gridH; gy++) {
+        const row = [];
+        for (let gx = 0; gx < gridW; gx++) {
+          const x0 = Math.floor(gx * hiW / gridW);
+          const x1 = Math.max(x0 + 1, Math.floor((gx + 1) * hiW / gridW));
+          const y0 = Math.floor(gy * hiH / gridH);
+          const y1 = Math.max(y0 + 1, Math.floor((gy + 1) * hiH / gridH));
+          let blacks = 0, total = 0;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              if (activeMask[py * hiW + px]) blacks++;
+              total++;
+            }
+          }
+          const cell = (total > 0 && blacks / total >= blackRatioThresh) ? mardBlack : mardWhite;
+          row.push(cell);
+          colorCount[cell.name] = (colorCount[cell.name] || 0) + 1;
+        }
+        grid.push(row);
+      }
+      return { grid, colorCount };
+    }
+
+    // ── 黑色细线保护：量化后用高分辨率源图纠正丢失的深色格子 ──────────────────────
+    // 原理：量化在缩小图上进行，细黑线被白底平均成灰色后映射到白色 MARD 色。
+    // 修复：量化结束后对每个"亮色格子"，回头查高分辨率源图里该格区域，
+    // 若深色像素占比 >= darkCellRatio，说明这里有细线，强制覆盖为色板里最深的颜色。
+    // 对彩色图安全：彩色暗部已经被量化到深色，cellLum < lightCellMaxLum 直接跳过。
+    function protectDarkLines(grid, gridW, gridH, colorCount, src, selectedPalette) {
+      const DARK_SRC_LUM    = 100;  // 源图像素亮度 < 此值 → 视为深色像素
+      const DARK_CELL_RATIO = 0.10; // 格子内深色像素比例 >= 10% → 判定为黑线格
+      const LIGHT_CELL_LUM  = 180;  // 只对量化结果亮度 > 此值的格子做保护（已是深色的格不动）
+
+      // 找出 selectedPalette 里最暗的颜色
+      let darkColor = null, minLum = Infinity;
+      for (const c of selectedPalette) {
+        const lum = 0.2126*c.r + 0.7152*c.g + 0.0722*c.b;
+        if (lum < minLum) { minLum = lum; darkColor = c; }
+      }
+      // 如果色板里没有足够深的颜色（亮度 >= 80），直接跳过保护逻辑
+      if (!darkColor || minLum >= 80) return { grid, colorCount };
+
+      // 在源图分辨率绘制，读像素
+      const hiW = src instanceof HTMLCanvasElement ? src.width  : src.naturalWidth;
+      const hiH = src instanceof HTMLCanvasElement ? src.height : src.naturalHeight;
+      const hiC = document.createElement('canvas');
+      hiC.width = hiW; hiC.height = hiH;
+      const hiCtx = hiC.getContext('2d');
+      hiCtx.fillStyle = '#ffffff';
+      hiCtx.fillRect(0, 0, hiW, hiH);
+      hiCtx.drawImage(src, 0, 0);
+      const hiData = hiCtx.getImageData(0, 0, hiW, hiH).data;
+
+      let changed = false;
+      for (let gy = 0; gy < gridH; gy++) {
+        for (let gx = 0; gx < gridW; gx++) {
+          const cell = grid[gy][gx];
+          if (!cell) continue;
+          // 只检查量化后亮色的格子（深色格已经正确，不动）
+          const cellLum = 0.2126*cell.r + 0.7152*cell.g + 0.0722*cell.b;
+          if (cellLum < LIGHT_CELL_LUM) continue;
+
+          // 该格子在源图里对应的像素范围
+          const x0 = Math.floor(gx * hiW / gridW);
+          const x1 = Math.max(x0 + 1, Math.floor((gx + 1) * hiW / gridW));
+          const y0 = Math.floor(gy * hiH / gridH);
+          const y1 = Math.max(y0 + 1, Math.floor((gy + 1) * hiH / gridH));
+          let darks = 0, total = 0;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const idx = (py * hiW + px) * 4;
+              total++;
+              if (hiData[idx+3] < 30) continue; // 透明 = 背景，不计入深色
+              const lum = 0.2126*hiData[idx] + 0.7152*hiData[idx+1] + 0.0722*hiData[idx+2];
+              if (lum < DARK_SRC_LUM) darks++;
+            }
+          }
+          if (total > 0 && darks / total >= DARK_CELL_RATIO) {
+            grid[gy][gx] = darkColor;
+            changed = true;
+          }
+        }
+      }
+
+      if (!changed) return { grid, colorCount };
+      // 重新统计 colorCount
+      const newCC = {};
+      for (let y = 0; y < gridH; y++)
+        for (let x = 0; x < gridW; x++)
+          if (grid[y][x]) newCC[grid[y][x].name] = (newCC[grid[y][x].name] || 0) + 1;
       return { grid, colorCount: newCC };
     }
 
@@ -1937,71 +2178,68 @@
 
       // 艺术风格配置
       const style = document.querySelector('.style-btn.active')?.dataset.style || 'simplified';
-      // rareMin：颗数低于此值的颜色合并到最近主色（写实模式放宽到 3，避免过度合并）
-      const STYLE_CFG = {
-        realistic:  { useFullPalette: true,  dither: false, labDedup: null, noise: false, rareMin: 3  },
-        simplified: { useFullPalette: false, dither: true,  labDedup: 2,   noise: false, rareMin: 10 },
-        cartoon:    { useFullPalette: false, n: 12, dither: false, labDedup: 4, noise: true,  rareMin: 10 },
-        minimal:    { useFullPalette: false, n: 6,  dither: false, labDedup: 6, noise: true,  rareMin: 10 },
-      };
-      const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
 
-      // ① 选色
-      let selectedPalette;
-      if (styleCfg.useFullPalette) {
-        // 写实：直接用完整色库，逐像素最近色匹配，不限颜色数量
-        selectedPalette = palette;
-      } else {
-        // 其他模式：K-means 从图片提取代表色 → 映射到色库 → LAB 去重
-        const totalCells = gridW * gridH;
-        const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
-        const targetN    = styleCfg.n || dynamicN;
-        selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
-        if (styleCfg.labDedup) selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
-      }
-
-      // ① B&W 覆盖：若黑白横幅激活且非"彩色模式"，用纯中性灰色板覆盖 selectedPalette
-      // 彩色处理逻辑不受影响，只是最后替换色板
-      const bwBannerEl = document.getElementById('bw-banner');
-      const bwMode = (bwBannerEl.style.display !== 'none')
-        ? (document.querySelector('.bw-btn.active')?.dataset.bw || 'off')
-        : 'off';
-      console.log('[BW] convert → bwMode =', bwMode, '| banner display =', bwBannerEl.style.display);
-      if (bwMode === 'mono' || bwMode === 'gray') {
-        selectedPalette = getBwPalette(palette, bwMode);
-        console.log('[BW] selectedPalette overridden →', selectedPalette.map(c => c.name));
-      }
-
-      // ② 量化（B&W 模式强制关闭抖动，避免在线稿上产生散点）
       let grid, colorCount;
-      const useDither = styleCfg.dither && bwMode === 'off';
-      if (useDither) {
-        // 简化：Floyd-Steinberg 抖动，用 K-means 选出的色板
-        ({ grid, colorCount } = floydSteinbergDither(imgData, gridW, gridH, selectedPalette));
+
+      if (style === 'lineart') {
+        // ── 线稿模式：高分辨率黑线 mask → 格子黑占比判断 ──────────────────────────
+        const laThresh = parseInt(document.getElementById('la-thresh').value);    // 黑线阈值
+        const laDilate = parseInt(document.getElementById('la-dilate').value);    // 膨胀像素
+        const laRatio  = parseInt(document.getElementById('la-ratio').value) / 100; // 格子黑占比
+        ({ grid, colorCount } = convertLineArt(src, gridW, gridH, palette, laThresh, laDilate, laRatio));
       } else {
-        // 写实/卡通/极简：逐像素最近色匹配
-        grid = []; colorCount = {};
-        for (let y = 0; y < gridH; y++) {
-          const row = [];
-          for (let x = 0; x < gridW; x++) {
-            const i = (y * gridW + x) * 4;
-            const r = imgData.data[i+3] < 30 ? 255 : imgData.data[i];
-            const g = imgData.data[i+3] < 30 ? 255 : imgData.data[i+1];
-            const b = imgData.data[i+3] < 30 ? 255 : imgData.data[i+2];
-            const c = closestColor(r, g, b, selectedPalette);
-            row.push(c);
-            colorCount[c.name] = (colorCount[c.name] || 0) + 1;
-          }
-          grid.push(row);
+        // rareMin：颗数低于此值的颜色合并到最近主色（写实模式放宽到 3，避免过度合并）
+        const STYLE_CFG = {
+          realistic:  { useFullPalette: true,  dither: false, labDedup: null, noise: false, rareMin: 3  },
+          simplified: { useFullPalette: false, dither: true,  labDedup: 2,   noise: false, rareMin: 10 },
+          cartoon:    { useFullPalette: false, n: 12, dither: false, labDedup: 4, noise: true,  rareMin: 10 },
+          minimal:    { useFullPalette: false, n: 6,  dither: false, labDedup: 6, noise: true,  rareMin: 10 },
+        };
+        const styleCfg = STYLE_CFG[style] || STYLE_CFG.simplified;
+
+        // 选色
+        let selectedPalette;
+        if (styleCfg.useFullPalette) {
+          selectedPalette = palette;
+        } else {
+          const totalCells = gridW * gridH;
+          const dynamicN   = totalCells <= 400 ? 8 : totalCells <= 1600 ? 16 : 24;
+          const targetN    = styleCfg.n || dynamicN;
+          selectedPalette = selectSmartPalette(imgData, targetN * 2, palette);
+          if (styleCfg.labDedup) selectedPalette = deduplicateColorsLAB(selectedPalette, styleCfg.labDedup);
         }
+
+        // 量化
+        const useDither = styleCfg.dither;
+        if (useDither) {
+          ({ grid, colorCount } = floydSteinbergDither(imgData, gridW, gridH, selectedPalette));
+        } else {
+          grid = []; colorCount = {};
+          for (let y = 0; y < gridH; y++) {
+            const row = [];
+            for (let x = 0; x < gridW; x++) {
+              const i = (y * gridW + x) * 4;
+              const r = imgData.data[i+3] < 30 ? 255 : imgData.data[i];
+              const g = imgData.data[i+3] < 30 ? 255 : imgData.data[i+1];
+              const b = imgData.data[i+3] < 30 ? 255 : imgData.data[i+2];
+              const c = closestColor(r, g, b, selectedPalette);
+              row.push(c);
+              colorCount[c.name] = (colorCount[c.name] || 0) + 1;
+            }
+            grid.push(row);
+          }
+        }
+
+        // 噪点去除（卡通/极简）
+        if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
+
+        // 自动合并噪点色
+        const rareMin = styleCfg.rareMin;
+        ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareMin));
+
+        // 黑色细线保护：回查高分辨率源图，纠正被白底平均掉的深色细线格子
+        ({ grid, colorCount } = protectDarkLines(grid, gridW, gridH, colorCount, src, selectedPalette));
       }
-
-      // ③ 噪点去除（卡通/极简）
-      if (styleCfg.noise) ({ grid, colorCount } = gridNoiseRemoval(grid, gridW, gridH));
-
-      // ④ 自动合并噪点色（B&W 用更高阈值清理边缘散点，彩色按各模式配置）
-      const rareMin = (bwMode === 'mono' || bwMode === 'gray') ? 20 : styleCfg.rareMin;
-      ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, rareMin));
 
       // ⑥ 主体模式：BFS 去除背景（去除后重新统计，可能再产生零星小色）
       if (document.getElementById('subject-mode').checked) {
@@ -2130,8 +2368,23 @@
         </tr>`;
       }).join('');
 
+      setShoppingOpen(false);
       document.getElementById('shopping-section').style.display = 'block';
     }
+
+    function setShoppingOpen(open) {
+      const wrap = document.getElementById('shopping-table-wrap');
+      const btn = document.getElementById('shopping-toggle');
+      if (!wrap || !btn) return;
+      wrap.classList.toggle('open', open);
+      btn.classList.toggle('open', open);
+      btn.innerHTML = `${open ? '收起清单' : '展开清单'} <span class="caret">⌄</span>`;
+    }
+
+    document.getElementById('shopping-toggle').addEventListener('click', () => {
+      const wrap = document.getElementById('shopping-table-wrap');
+      setShoppingOpen(!wrap.classList.contains('open'));
+    });
 
     // ─── 分色高亮 ────────────────────────────────────────────────────────────────
     function highlightColor(name) {
@@ -2554,6 +2807,85 @@
       }
     }
 
+    function renderSingleBoardCanvas(canvas, startX, startY, bW, bH, targetName = null) {
+      const CS = currentCellSize;
+      const ctx = canvas.getContext('2d');
+      canvas.width = bW * CS;
+      canvas.height = bH * CS;
+
+      for (let y = startY; y < startY + bH; y++) {
+        for (let x = startX; x < startX + bW; x++) {
+          const clr = currentGrid[y][x];
+          const px = (x - startX) * CS;
+          const py = (y - startY) * CS;
+          if (!clr) { drawEmptyCell(ctx, px, py, CS); continue; }
+          if (!targetName || clr.name === targetName) {
+            ctx.fillStyle = `rgb(${clr.r},${clr.g},${clr.b})`;
+          } else {
+            const dr = Math.round(clr.r * 0.18 + 238 * 0.82);
+            const dg = Math.round(clr.g * 0.18 + 238 * 0.82);
+            const db = Math.round(clr.b * 0.18 + 238 * 0.82);
+            ctx.fillStyle = `rgb(${dr},${dg},${db})`;
+          }
+          ctx.fillRect(px, py, CS, CS);
+        }
+      }
+
+      ctx.strokeStyle = targetName ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.1)';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= bW; i++) {
+        ctx.beginPath(); ctx.moveTo(i*CS, 0); ctx.lineTo(i*CS, bH*CS); ctx.stroke();
+      }
+      for (let j = 0; j <= bH; j++) {
+        ctx.beginPath(); ctx.moveTo(0, j*CS); ctx.lineTo(bW*CS, j*CS); ctx.stroke();
+      }
+
+      const showLabels = document.getElementById('show-labels').checked;
+      if (showLabels && CS >= 9) {
+        const fs = Math.max(4, Math.floor(CS * 0.42));
+        ctx.font = `bold ${fs}px Arial,sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        for (let y = startY; y < startY + bH; y++) {
+          for (let x = startX; x < startX + bW; x++) {
+            const clr = currentGrid[y][x];
+            if (!clr || (targetName && clr.name !== targetName)) continue;
+            const lum = 0.299*clr.r + 0.587*clr.g + 0.114*clr.b;
+            ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
+            ctx.fillText(clr.name, (x-startX)*CS + CS/2, (y-startY)*CS + CS/2);
+          }
+        }
+      }
+
+      if (targetName) {
+        ctx.strokeStyle = 'rgba(255,196,46,0.95)';
+        ctx.lineWidth = Math.max(1.5, CS * 0.18);
+        for (let y = startY; y < startY + bH; y++) {
+          for (let x = startX; x < startX + bW; x++) {
+            const clr = currentGrid[y][x];
+            if (!clr || clr.name !== targetName) continue;
+            ctx.strokeRect((x-startX)*CS + 1, (y-startY)*CS + 1, CS - 2, CS - 2);
+          }
+        }
+      }
+    }
+
+    function highlightBoardColor(chipEl, name) {
+      const card = chipEl.closest('.board-card');
+      if (!card) return;
+      const canvas = card.querySelector('canvas');
+      const startX = parseInt(canvas.dataset.startX, 10);
+      const startY = parseInt(canvas.dataset.startY, 10);
+      const bW = parseInt(canvas.dataset.boardW, 10);
+      const bH = parseInt(canvas.dataset.boardH, 10);
+      const isActive = chipEl.classList.contains('chip-active');
+
+      card.querySelectorAll('.board-card-colors .color-chip').forEach(el => {
+        el.classList.toggle('chip-active', !isActive && el.dataset.color === name);
+        el.classList.toggle('chip-dim', !isActive && el.dataset.color !== name);
+      });
+      renderSingleBoardCanvas(canvas, startX, startY, bW, bH, isActive ? null : name);
+    }
+
     function renderIndividualBoards() {
       const GW = currentGridW, GH = currentGridH, CS = currentCellSize;
       const cols = currentBoardsX, rows = currentBoardsY, BS = currentBoardSize;
@@ -2596,43 +2928,11 @@
             <span class="board-card-sub">${r+1}行·${c+1}列 &nbsp;|&nbsp; ${bW}×${bH} 格 &nbsp;|&nbsp; ${bColorNum}色</span>`;
 
           const canvas = document.createElement('canvas');
-          canvas.width  = bW * CS;
-          canvas.height = bH * CS;
-          const ctx = canvas.getContext('2d');
-
-          // 绘制格子内容
-          for (let y = startY; y < endY; y++) {
-            for (let x = startX; x < endX; x++) {
-              const clr = currentGrid[y][x];
-              if (!clr) { drawEmptyCell(ctx, (x-startX)*CS, (y-startY)*CS, CS); continue; }
-              ctx.fillStyle = `rgb(${clr.r},${clr.g},${clr.b})`;
-              ctx.fillRect((x-startX)*CS, (y-startY)*CS, CS, CS);
-            }
-          }
-          // 网格线
-          ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-          ctx.lineWidth = 0.5;
-          for (let i = 0; i <= bW; i++) {
-            ctx.beginPath(); ctx.moveTo(i*CS, 0); ctx.lineTo(i*CS, bH*CS); ctx.stroke();
-          }
-          for (let j = 0; j <= bH; j++) {
-            ctx.beginPath(); ctx.moveTo(0, j*CS); ctx.lineTo(bW*CS, j*CS); ctx.stroke();
-          }
-          // 色号标注
-          if (showLabels && CS >= 9) {
-            const fs = Math.max(4, Math.floor(CS * 0.42));
-            ctx.font = `bold ${fs}px Arial,sans-serif`;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            for (let y = startY; y < endY; y++) {
-              for (let x = startX; x < endX; x++) {
-                const clr = currentGrid[y][x];
-                if (!clr) continue;
-                const lum = 0.299*clr.r + 0.587*clr.g + 0.114*clr.b;
-                ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
-                ctx.fillText(clr.name, (x-startX)*CS + CS/2, (y-startY)*CS + CS/2);
-              }
-            }
-          }
+          canvas.dataset.startX = startX;
+          canvas.dataset.startY = startY;
+          canvas.dataset.boardW = bW;
+          canvas.dataset.boardH = bH;
+          renderSingleBoardCanvas(canvas, startX, startY, bW, bH);
 
           // 下载按钮
           const dlBtn = document.createElement('button');
@@ -2652,7 +2952,7 @@
           const sorted = Object.entries(bColorCount).sort((a,b) => b[1]-a[1]);
           colorRow.innerHTML = sorted.map(([name, cnt]) => {
             const cl = COLOR_MAP[name];
-            return `<div class="color-chip color-swatch-wrap">
+            return `<div class="color-chip color-swatch-wrap" data-color="${name}" onclick="highlightBoardColor(this,'${name}')" title="高亮 ${name}">
               <div class="color-swatch" style="background:rgb(${cl.r},${cl.g},${cl.b})"></div>
               <span>${name}×${cnt}</span>
             </div>`;
