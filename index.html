@@ -2311,11 +2311,11 @@
             const bw = tw + padX * 2;
             const bh = fontSize + padY * 2;
             const r  = Math.max(1.5, fontSize * 0.28);
-            ctx.fillStyle = 'rgba(255,255,255,0.88)';
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.beginPath();
             ctx.roundRect(Math.round(cx - bw/2), Math.round(cy - bh/2), Math.ceil(bw), Math.ceil(bh), r);
             ctx.fill();
-            ctx.fillStyle = '#1a1a1a';
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
             ctx.fillText(c.name, cx, cy);
           }
         }
