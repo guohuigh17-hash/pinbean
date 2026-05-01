@@ -2467,7 +2467,7 @@
 
     // ─── 导出功能 ────────────────────────────────────────────────────────────────
     function exportPNG() {
-      const EXPORT_CS = 60;
+      const EXPORT_CS = 32;
       const grid = currentGrid;
       const gridW = currentGridW;
       const gridH = currentGridH;
@@ -2516,11 +2516,11 @@
           const bw = tw + padX * 2;
           const bh = fontSize + padY * 2;
           const r  = Math.max(2, fontSize * 0.28);
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = 'rgba(255,255,255,0.75)';
           ctx.beginPath();
           ctx.roundRect(Math.round(cx - bw/2), Math.round(cy - bh/2), Math.ceil(bw), Math.ceil(bh), r);
           ctx.fill();
-          ctx.fillStyle = '#000000';
+          ctx.fillStyle = 'rgba(0,0,0,0.8)';
           ctx.fillText(c.name, cx, cy);
         }
       }
