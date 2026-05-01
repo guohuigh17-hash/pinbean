@@ -2456,7 +2456,7 @@
 
     // ─── 导出功能 ────────────────────────────────────────────────────────────────
     function exportPNG() {
-      const EXPORT_CS = 40;
+      const EXPORT_CS = 60;
       const grid = currentGrid;
       const gridW = currentGridW;
       const gridH = currentGridH;
@@ -2476,34 +2476,34 @@
         }
       }
 
-      // 网格线
-      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      // 网格线（整数像素，避免模糊）
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
       ctx.lineWidth = 1;
       for (let i = 0; i <= gridW; i++) {
-        ctx.beginPath(); ctx.moveTo(i*EXPORT_CS, 0); ctx.lineTo(i*EXPORT_CS, gridH*EXPORT_CS); ctx.stroke();
+        const px = Math.round(i * EXPORT_CS) + 0.5;
+        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, gridH*EXPORT_CS); ctx.stroke();
       }
       for (let j = 0; j <= gridH; j++) {
-        ctx.beginPath(); ctx.moveTo(0, j*EXPORT_CS); ctx.lineTo(gridW*EXPORT_CS, j*EXPORT_CS); ctx.stroke();
+        const py = Math.round(j * EXPORT_CS) + 0.5;
+        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(gridW*EXPORT_CS, py); ctx.stroke();
       }
 
-      // 色号标签（强制显示，字号占格子 48%）
-      const fontSize = Math.round(EXPORT_CS * 0.48);
-      ctx.font = `bold ${fontSize}px Arial,sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // 色号标签：纯色填充，不描边，整数定位，字号 ~29px
+      const fontSize = Math.round(EXPORT_CS * 0.46);
+      ctx.font = `bold ${fontSize}px "Arial","Helvetica",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       for (let y = 0; y < gridH; y++) {
         for (let x = 0; x < gridW; x++) {
           const c = grid[y][x];
           if (!c) continue;
-          const cx = x*EXPORT_CS + EXPORT_CS/2;
-          const cy = y*EXPORT_CS + EXPORT_CS/2;
           const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
-          // 描边增加对比度
-          ctx.strokeStyle = lum > 148 ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)';
-          ctx.lineWidth = 2.5;
-          ctx.lineJoin = 'round';
-          ctx.strokeText(c.name, cx, cy);
-          ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.95)';
-          ctx.fillText(c.name, cx, cy);
+          ctx.fillStyle = lum > 140 ? '#000000' : '#ffffff';
+          ctx.fillText(
+            c.name,
+            Math.round(x*EXPORT_CS + EXPORT_CS/2),
+            Math.round(y*EXPORT_CS + EXPORT_CS/2)
+          );
         }
       }
 
