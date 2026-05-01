@@ -2456,7 +2456,7 @@
 
     // ─── 导出功能 ────────────────────────────────────────────────────────────────
     function exportPNG() {
-      const EXPORT_CS = 24;
+      const EXPORT_CS = 40;
       const grid = currentGrid;
       const gridW = currentGridW;
       const gridH = currentGridH;
@@ -2477,8 +2477,8 @@
       }
 
       // 网格线
-      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.lineWidth = 1;
       for (let i = 0; i <= gridW; i++) {
         ctx.beginPath(); ctx.moveTo(i*EXPORT_CS, 0); ctx.lineTo(i*EXPORT_CS, gridH*EXPORT_CS); ctx.stroke();
       }
@@ -2486,17 +2486,24 @@
         ctx.beginPath(); ctx.moveTo(0, j*EXPORT_CS); ctx.lineTo(gridW*EXPORT_CS, j*EXPORT_CS); ctx.stroke();
       }
 
-      // 色号标签（强制显示）
-      const fontSize = Math.max(4, Math.floor(EXPORT_CS * 0.42));
+      // 色号标签（强制显示，字号占格子 48%）
+      const fontSize = Math.round(EXPORT_CS * 0.48);
       ctx.font = `bold ${fontSize}px Arial,sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (let y = 0; y < gridH; y++) {
         for (let x = 0; x < gridW; x++) {
           const c = grid[y][x];
           if (!c) continue;
+          const cx = x*EXPORT_CS + EXPORT_CS/2;
+          const cy = y*EXPORT_CS + EXPORT_CS/2;
           const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
-          ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
-          ctx.fillText(c.name, x*EXPORT_CS + EXPORT_CS/2, y*EXPORT_CS + EXPORT_CS/2);
+          // 描边增加对比度
+          ctx.strokeStyle = lum > 148 ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)';
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = 'round';
+          ctx.strokeText(c.name, cx, cy);
+          ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.95)';
+          ctx.fillText(c.name, cx, cy);
         }
       }
 
