@@ -2182,7 +2182,7 @@
     document.getElementById('convert-btn').addEventListener('click', () => {
       if (!currentImageData) return;
       const boardSize  = parseInt(document.getElementById('board-type').value);
-      const cellSize   = parseInt(document.getElementById('cell-size').value);
+      let cellSize     = parseInt(document.getElementById('cell-size').value);
       const tierIndex  = parseInt(document.getElementById('kit-tier').value);
       const showLabels = document.getElementById('show-labels').checked;
 
