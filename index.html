@@ -456,6 +456,10 @@
             显示色号（打印图纸时使用）
           </label>
           <label class="toggle-label">
+            <input type="checkbox" id="print-mode">
+            打印清晰模式（导出 PNG 用 40px 大格子 + 坐标 + 图例）
+          </label>
+          <label class="toggle-label">
             <input type="checkbox" id="subject-mode">
             只拼主体（自动去除背景空位）
           </label>
@@ -2287,16 +2291,18 @@
           ctx.fillRect(x*cellSize, y*cellSize, cellSize, cellSize);
         }
       }
-      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = '#d0d0d0';
+      ctx.lineWidth = 1;
       for (let i = 0; i <= gridW; i++) {
-        ctx.beginPath(); ctx.moveTo(i*cellSize, 0); ctx.lineTo(i*cellSize, gridH*cellSize); ctx.stroke();
+        const px = i * cellSize + 0.5;
+        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, gridH*cellSize); ctx.stroke();
       }
       for (let j = 0; j <= gridH; j++) {
-        ctx.beginPath(); ctx.moveTo(0, j*cellSize); ctx.lineTo(gridW*cellSize, j*cellSize); ctx.stroke();
+        const py = j * cellSize + 0.5;
+        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(gridW*cellSize, py); ctx.stroke();
       }
-      if (showLabels && cellSize >= 9) {
-        const fontSize = Math.max(4, Math.floor(cellSize * 0.42));
+      if (showLabels && cellSize >= 18) {
+        const fontSize = Math.max(8, Math.floor(cellSize * 0.42));
         ctx.font = `bold ${fontSize}px Arial,sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         for (let y = 0; y < gridH; y++) {
@@ -2308,8 +2314,8 @@
             const tw = ctx.measureText(c.name).width;
             const padX = Math.max(1, fontSize * 0.22);
             const padY = Math.max(1, fontSize * 0.12);
-            const bw = tw + padX * 2;
-            const bh = fontSize + padY * 2;
+            const bw = Math.min(tw + padX*2, cellSize - 2);
+            const bh = Math.min(fontSize + padY*2, cellSize - 2);
             const r  = Math.max(1.5, fontSize * 0.28);
             ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.beginPath();
@@ -2440,26 +2446,35 @@
         }
       }
       // 网格线
-      ctx.strokeStyle = 'rgba(0,0,0,0.07)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = '#d0d0d0';
+      ctx.lineWidth = 1;
       for (let i = 0; i <= GW; i++) {
-        ctx.beginPath(); ctx.moveTo(i*CS, 0); ctx.lineTo(i*CS, GH*CS); ctx.stroke();
+        const px = i*CS + 0.5;
+        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, GH*CS); ctx.stroke();
       }
       for (let j = 0; j <= GH; j++) {
-        ctx.beginPath(); ctx.moveTo(0, j*CS); ctx.lineTo(GW*CS, j*CS); ctx.stroke();
+        const py = j*CS + 0.5;
+        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(GW*CS, py); ctx.stroke();
       }
-      // 对目标颜色的格子画色号
-      if (currentShowLabels && CS >= 9) {
-        const fontSize = Math.max(4, Math.floor(CS * 0.42));
+      // 对目标颜色的格子画色号（白底圆角块）
+      if (currentShowLabels && CS >= 18) {
+        const fontSize = Math.max(8, Math.floor(CS * 0.42));
         ctx.font = `bold ${fontSize}px Arial,sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         for (let y = 0; y < GH; y++) {
           for (let x = 0; x < GW; x++) {
             const c = currentGrid[y][x];
             if (!c || c.name !== targetName) continue;
-            const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
-            ctx.fillStyle = lum > 148 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.82)';
-            ctx.fillText(c.name, x*CS + CS/2, y*CS + CS/2);
+            const cx = x*CS + CS/2, cy = y*CS + CS/2;
+            const tw = ctx.measureText(c.name).width;
+            const padX = Math.max(1, fontSize*0.22), padY = Math.max(1, fontSize*0.12);
+            const bw = Math.min(tw+padX*2, CS-2), bh = Math.min(fontSize+padY*2, CS-2);
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.beginPath();
+            ctx.roundRect(Math.round(cx-bw/2), Math.round(cy-bh/2), Math.ceil(bw), Math.ceil(bh), Math.max(1.5, fontSize*0.28));
+            ctx.fill();
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillText(c.name, cx, cy);
           }
         }
       }
@@ -2467,67 +2482,151 @@
 
     // ─── 导出功能 ────────────────────────────────────────────────────────────────
     function exportPNG() {
-      const EXPORT_CS = 32;
-      const grid = currentGrid;
+      const printMode = document.getElementById('print-mode')?.checked;
+      const CS    = printMode ? 40 : 28;   // 逻辑格子尺寸
+      const SCALE = 2;                      // 2× 高分辨率
+      const COORD = Math.round(CS * 0.72); // 坐标边距
+
+      const grid  = currentGrid;
       const gridW = currentGridW;
       const gridH = currentGridH;
 
-      const tmpCanvas = document.createElement('canvas');
-      tmpCanvas.width  = gridW * EXPORT_CS;
-      tmpCanvas.height = gridH * EXPORT_CS;
-      const ctx = tmpCanvas.getContext('2d');
+      // ── 图例布局计算 ──────────────────────────────────────────────────────────
+      const sorted    = Object.entries(currentColorCount || {}).sort((a,b) => b[1]-a[1]);
+      const swatchSz  = Math.round(CS * 0.42);
+      const chipW     = Math.round(CS * 2.7);
+      const chipH     = Math.round(CS * 0.62);
+      const chipGap   = Math.round(CS * 0.18);
+      const legPadT   = Math.round(CS * 0.4);
+      const legPadB   = Math.round(CS * 0.3);
+      const perRow    = Math.max(1, Math.floor((gridW * CS) / (chipW + chipGap)));
+      const legRows   = Math.ceil(sorted.length / perRow);
+      const legH      = legRows > 0 ? legPadT + legRows*(chipH+chipGap) + legPadB : 0;
 
-      // 填色
+      // ── canvas 尺寸（逻辑坐标，ctx.scale 放大） ──────────────────────────────
+      const logW = COORD + gridW * CS;
+      const logH = COORD + gridH * CS + legH;
+
+      const tmp = document.createElement('canvas');
+      tmp.width  = logW * SCALE;
+      tmp.height = logH * SCALE;
+      const ctx  = tmp.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+
+      // ── 背景 ─────────────────────────────────────────────────────────────────
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, logW, logH);
+
+      // 坐标区域浅灰底
+      ctx.fillStyle = '#f7f7f5';
+      ctx.fillRect(0, 0, logW, COORD);
+      ctx.fillRect(0, 0, COORD, logH);
+
+      // ── 列号（顶部） ─────────────────────────────────────────────────────────
+      const coordFs = Math.max(7, Math.round(COORD * 0.52));
+      ctx.font = `bold ${coordFs}px Arial,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#555';
+      for (let x = 0; x < gridW; x++) {
+        if ((x+1) % 5 === 0 || x === 0)   // 只标 1,5,10,15... 避免拥挤
+          ctx.fillText(x+1, COORD + x*CS + CS/2, COORD/2);
+      }
+
+      // ── 行号（左侧） ─────────────────────────────────────────────────────────
+      ctx.textAlign = 'center';
+      for (let y = 0; y < gridH; y++) {
+        if ((y+1) % 5 === 0 || y === 0)
+          ctx.fillText(y+1, COORD/2, COORD + y*CS + CS/2);
+      }
+
+      // ── 格子填色 ──────────────────────────────────────────────────────────────
       for (let y = 0; y < gridH; y++) {
         for (let x = 0; x < gridW; x++) {
+          const px = COORD + x*CS, py = COORD + y*CS;
           const c = grid[y][x];
-          if (!c) { drawEmptyCell(ctx, x*EXPORT_CS, y*EXPORT_CS, EXPORT_CS); continue; }
-          ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
-          ctx.fillRect(x*EXPORT_CS, y*EXPORT_CS, EXPORT_CS, EXPORT_CS);
+          ctx.fillStyle = c ? `rgb(${c.r},${c.g},${c.b})` : '#f0f0ee';
+          ctx.fillRect(px, py, CS, CS);
         }
       }
 
-      // 网格线（整数像素，避免模糊）
-      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-      ctx.lineWidth = 1;
+      // ── 网格线 ────────────────────────────────────────────────────────────────
+      ctx.strokeStyle = '#d0d0d0';
+      ctx.lineWidth = 0.5;
       for (let i = 0; i <= gridW; i++) {
-        const px = Math.round(i * EXPORT_CS) + 0.5;
-        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, gridH*EXPORT_CS); ctx.stroke();
+        const px = COORD + i*CS + 0.5;
+        ctx.beginPath(); ctx.moveTo(px, COORD); ctx.lineTo(px, COORD+gridH*CS); ctx.stroke();
       }
       for (let j = 0; j <= gridH; j++) {
-        const py = Math.round(j * EXPORT_CS) + 0.5;
-        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(gridW*EXPORT_CS, py); ctx.stroke();
+        const py = COORD + j*CS + 0.5;
+        ctx.beginPath(); ctx.moveTo(COORD, py); ctx.lineTo(COORD+gridW*CS, py); ctx.stroke();
       }
+      // 外框加深
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(COORD+0.5, COORD+0.5, gridW*CS-1, gridH*CS-1);
 
-      // 色号标签：白底圆角块 + 纯黑字，整数定位
-      const fontSize = Math.round(EXPORT_CS * 0.46);
+      // ── 色号标签（白底圆角块 + 黑字） ───────────────────────────────────────
+      const fontSize = Math.max(8, Math.floor(CS * 0.42));
       ctx.font = `bold ${fontSize}px Arial,sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (let y = 0; y < gridH; y++) {
         for (let x = 0; x < gridW; x++) {
           const c = grid[y][x];
           if (!c) continue;
-          const cx = Math.round(x*EXPORT_CS + EXPORT_CS/2);
-          const cy = Math.round(y*EXPORT_CS + EXPORT_CS/2);
-          const tw = ctx.measureText(c.name).width;
-          const padX = Math.max(2, fontSize * 0.22);
-          const padY = Math.max(2, fontSize * 0.12);
-          const bw = tw + padX * 2;
-          const bh = fontSize + padY * 2;
-          const r  = Math.max(2, fontSize * 0.28);
-          ctx.fillStyle = 'rgba(255,255,255,0.75)';
+          const cx = COORD + x*CS + CS/2;
+          const cy = COORD + y*CS + CS/2;
+          const tw  = ctx.measureText(c.name).width;
+          const padX = Math.max(1.5, fontSize*0.2);
+          const padY = Math.max(1,   fontSize*0.1);
+          const bw  = Math.min(tw + padX*2, CS-2);
+          const bh  = Math.min(fontSize + padY*2, CS-2);
+          ctx.fillStyle = 'rgba(255,255,255,0.82)';
           ctx.beginPath();
-          ctx.roundRect(Math.round(cx - bw/2), Math.round(cy - bh/2), Math.ceil(bw), Math.ceil(bh), r);
+          ctx.roundRect(Math.round(cx-bw/2), Math.round(cy-bh/2), Math.ceil(bw), Math.ceil(bh), Math.max(2, fontSize*0.25));
           ctx.fill();
-          ctx.fillStyle = 'rgba(0,0,0,0.8)';
+          ctx.fillStyle = '#111';
           ctx.fillText(c.name, cx, cy);
         }
       }
 
+      // ── 底部颜色图例 ──────────────────────────────────────────────────────────
+      if (sorted.length > 0) {
+        const legTop = COORD + gridH*CS + legPadT;
+        const legFs  = Math.max(9, Math.round(CS * 0.38));
+
+        // 分隔线
+        ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(COORD, COORD + gridH*CS + legPadT*0.4);
+        ctx.lineTo(COORD + gridW*CS, COORD + gridH*CS + legPadT*0.4);
+        ctx.stroke();
+
+        ctx.font = `bold ${legFs}px Arial,sans-serif`;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+        sorted.forEach(([name, count], i) => {
+          const col = i % perRow;
+          const row = Math.floor(i / perRow);
+          const ix  = COORD + col*(chipW+chipGap);
+          const iy  = legTop + row*(chipH+chipGap);
+          const c   = COLOR_MAP[name];
+
+          // 色块
+          const sy = iy + (chipH-swatchSz)/2;
+          ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+          ctx.fillRect(ix, sy, swatchSz, swatchSz);
+          ctx.strokeStyle = '#ccc'; ctx.lineWidth = 0.5;
+          ctx.strokeRect(ix+0.5, sy+0.5, swatchSz-1, swatchSz-1);
+
+          // 文字：色号 + 数量
+          ctx.fillStyle = '#222';
+          ctx.fillText(`${name} ×${count}`, ix+swatchSz+4, iy+chipH/2);
+        });
+      }
+
       const a = document.createElement('a');
       a.download = 'mard-pattern.png';
-      a.href = tmpCanvas.toDataURL();
+      a.href = tmp.toDataURL('image/png');
       a.click();
     }
 
