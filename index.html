@@ -61,7 +61,12 @@
     .btn-primary:hover { background: linear-gradient(135deg,#2a2d27,#46523d); }
     .btn-primary:disabled { background: #1a1a1a; transform: none; box-shadow: none; }
     .output-area { margin-top: 1.5rem; display: none; }
-    .grid-canvas-wrap { overflow-x: auto; width: 100%; margin-bottom: 1rem; border-radius: 14px; border: 1px solid #ded9cd; background: #fff; padding: 10px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8), 0 14px 34px rgba(55,62,48,0.08); }
+    .grid-canvas-wrap { overflow: auto; width: 100%; margin-bottom: 1rem; border-radius: 14px; border: 1px solid #ded9cd; background: #fff; padding: 10px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8), 0 14px 34px rgba(55,62,48,0.08); }
+    #grid-canvas { image-rendering: pixelated; display: block; }
+    .zoom-bar { display:flex; align-items:center; gap:4px; margin-bottom:6px; }
+    .zoom-btn { padding:3px 10px; font-size:12px; border:1px solid #ccc; border-radius:999px; background:#f5f5f0; cursor:pointer; }
+    .zoom-btn:hover { background:#e8e8e0; }
+    .zoom-btn.zoom-active { background:#3a3a2e; color:#fff; border-color:#3a3a2e; }
     #grid-canvas { image-rendering: pixelated; display: block; min-width: 100%; border-radius: 10px; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 1rem; }
     .stat-card { background: linear-gradient(180deg,#fff,#f6f4ee); border: 1px solid #ebe7dc; border-radius: 12px; padding: 13px; box-shadow: 0 8px 22px rgba(45,52,42,0.05); }
@@ -418,12 +423,12 @@
           </select>
         </div>
         <div>
-          <label class="cfg-label">处理模式</label>
+          <label class="cfg-label">格子大小</label>
           <select id="cell-size">
-            <option value="6">紧凑（省空间）</option>
-            <option value="9" selected>标准</option>
-            <option value="12">清晰（易辨认）</option>
-            <option value="16">大图（打印用）</option>
+            <option value="12">小（大网格专用）</option>
+            <option value="20">中</option>
+            <option value="28" selected>大（推荐）</option>
+            <option value="40">超大（打印用）</option>
           </select>
         </div>
       </div>
@@ -452,12 +457,12 @@
         <div class="module-title">更多选项</div>
         <div class="options-row">
           <label class="toggle-label">
-            <input type="checkbox" id="show-labels">
-            显示色号（打印图纸时使用）
+            <input type="checkbox" id="show-labels" checked>
+            显示色号
           </label>
           <label class="toggle-label">
-            <input type="checkbox" id="print-mode">
-            打印清晰模式（导出 PNG 用 40px 大格子 + 坐标 + 图例）
+            <input type="checkbox" id="hd-export">
+            超高清导出（3× 分辨率，文件较大）
           </label>
           <label class="toggle-label">
             <input type="checkbox" id="subject-mode">
@@ -492,6 +497,13 @@
           <button class="btn btn-primary" id="share-btn">分享图纸链接</button>
         </div>
 
+        <div class="zoom-bar">
+          <span style="font-size:12px;color:#888;margin-right:6px;">缩放</span>
+          <button class="zoom-btn" data-zoom="0.5">50%</button>
+          <button class="zoom-btn" data-zoom="0.75">75%</button>
+          <button class="zoom-btn zoom-active" data-zoom="1">100%</button>
+          <button class="zoom-btn" data-zoom="1.5">150%</button>
+        </div>
         <div class="grid-canvas-wrap"><canvas id="grid-canvas"></canvas></div>
         <div class="stats" id="stats"></div>
         <div class="color-legend" id="color-legend"></div>
@@ -898,7 +910,7 @@
       let boardSize = 25;
       let longSide = 50;
       let style = 'simplified';
-      let cellSize = 9;
+      let cellSize = 28;
       let subjectMode = false;
       let tolerance = 50;
       let label = '均衡图案';
@@ -906,20 +918,20 @@
       if (isSimple) {
         longSide = 32;
         style = 'cartoon';
-        cellSize = 12;
+        cellSize = 28;
         subjectMode = bgVariance < 900;
         tolerance = 45;
         label = '简单图案 / logo / 贴纸';
       } else if (isLineLike) {
         longSide = 45;
         style = 'lineart';
-        cellSize = 12;
+        cellSize = 28;
         subjectMode = false;
         label = '线稿 / 表情包';
       } else if (isComplex) {
         longSide = 78;
         style = 'simplified';
-        cellSize = 9;
+        cellSize = 20;
         subjectMode = bgVariance < 1000;
         tolerance = 55;
         label = '照片 / 人像 / 细节图';
@@ -1057,6 +1069,25 @@
     const COLOR_IDX   = Object.fromEntries(COLOR_NAMES.map((n, i) => [n, i]));
 
     let currentImageData = null;
+    let currentZoom = 1.0;
+
+    function setZoom(z) {
+      currentZoom = z;
+      const canvas = document.getElementById('grid-canvas');
+      if (!canvas.width) return;
+      canvas.style.width  = (canvas.width  * z) + 'px';
+      canvas.style.height = (canvas.height * z) + 'px';
+      document.querySelectorAll('.zoom-btn').forEach(btn => {
+        btn.classList.toggle('zoom-active', parseFloat(btn.dataset.zoom) === z);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.zoom-btn').forEach(btn => {
+        btn.addEventListener('click', () => setZoom(parseFloat(btn.dataset.zoom)));
+      });
+    });
+
     let currentGrid = null, currentGridW = 0, currentGridH = 0, currentCellSize = 0;
     let currentBoardSize = 0, currentBoardsX = 0, currentBoardsY = 0;
     let currentTierIndex = 0, currentColorCount = null, currentShowLabels = true;
@@ -2258,6 +2289,13 @@
         ({ grid, colorCount } = mergeRareColors(grid, gridW, gridH, colorCount, 10));
       }
 
+      // 性能保护：大网格自动限制格子尺寸
+      if (gridW > 100 || gridH > 100) {
+        cellSize = Math.min(cellSize, 20);
+      } else {
+        cellSize = Math.max(cellSize, 20);  // 小网格至少 20px，保证清晰
+      }
+
       currentGrid = grid;
       currentGridW = gridW; currentGridH = gridH;
       currentCellSize = cellSize;
@@ -2326,6 +2364,8 @@
           }
         }
       }
+      // 应用当前缩放
+      setZoom(currentZoom);
     }
 
     function renderStats(colorCount, gridW, gridH, boardSize, boardsX, boardsY, tierIndex) {
@@ -2482,9 +2522,9 @@
 
     // ─── 导出功能 ────────────────────────────────────────────────────────────────
     function exportPNG() {
-      const printMode = document.getElementById('print-mode')?.checked;
-      const CS    = printMode ? 40 : 28;   // 逻辑格子尺寸
-      const SCALE = 2;                      // 2× 高分辨率
+      const hdExport = document.getElementById('hd-export')?.checked;
+      const CS    = 28;                     // 逻辑格子尺寸（与屏幕预览一致）
+      const SCALE = hdExport ? 3 : 2;       // 超高清 3×，默认 2×
       const COORD = Math.round(CS * 0.72); // 坐标边距
 
       const grid  = currentGrid;
