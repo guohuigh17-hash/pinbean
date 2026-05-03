@@ -489,6 +489,7 @@
             <button class="btn" id="export-toggle-btn">导出 ▾</button>
             <div class="export-menu" id="export-menu">
               <button id="download-png-btn">下载 PNG 图纸</button>
+              <button id="download-jpg-btn">下载 JPG 图纸</button>
               <button id="export-pdf-btn">导出 PDF</button>
               <button id="export-csv-btn">购物清单 CSV</button>
               <button id="export-txt-btn">购物清单 TXT</button>
@@ -2318,27 +2319,68 @@
 
     function renderGrid(grid, gridW, gridH, cellSize, showLabels) {
       const canvas = document.getElementById('grid-canvas');
-      canvas.width = gridW * cellSize; canvas.height = gridH * cellSize;
+      const COORD  = Math.max(14, Math.round(cellSize * 0.82));
+      canvas.width  = COORD * 2 + gridW * cellSize;
+      canvas.height = COORD * 2 + gridH * cellSize;
       const ctx = canvas.getContext('2d');
 
-      for (let y = 0; y < gridH; y++) {
-        for (let x = 0; x < gridW; x++) {
-          const c = grid[y][x];
-          if (!c) { drawEmptyCell(ctx, x*cellSize, y*cellSize, cellSize); continue; }
-          ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
-          ctx.fillRect(x*cellSize, y*cellSize, cellSize, cellSize);
+      // White background
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Axis strips (top / bottom / left / right)
+      ctx.fillStyle = '#f4f4f2';
+      ctx.fillRect(0, 0, canvas.width, COORD);
+      ctx.fillRect(0, canvas.height - COORD, canvas.width, COORD);
+      ctx.fillRect(0, 0, COORD, canvas.height);
+      ctx.fillRect(canvas.width - COORD, 0, COORD, canvas.height);
+
+      // Axis numbers
+      const coordFs = Math.max(7, Math.round(COORD * 0.48));
+      ctx.font = `bold ${coordFs}px Arial,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#777';
+      const colStep = gridW  <= 40 ? 1 : 5;
+      const rowStep = gridH <= 40 ? 1 : 5;
+      for (let x = 0; x < gridW; x++) {
+        if (x === 0 || (x+1) % colStep === 0) {
+          const cx = COORD + x*cellSize + cellSize/2;
+          ctx.fillText(x+1, cx, COORD/2);
+          ctx.fillText(x+1, cx, canvas.height - COORD/2);
         }
       }
+      for (let y = 0; y < gridH; y++) {
+        if (y === 0 || (y+1) % rowStep === 0) {
+          const cy = COORD + y*cellSize + cellSize/2;
+          ctx.fillText(y+1, COORD/2, cy);
+          ctx.fillText(y+1, canvas.width - COORD/2, cy);
+        }
+      }
+
+      // Grid cells
+      for (let y = 0; y < gridH; y++) {
+        for (let x = 0; x < gridW; x++) {
+          const px = COORD + x*cellSize, py = COORD + y*cellSize;
+          const c = grid[y][x];
+          if (!c) { drawEmptyCell(ctx, px, py, cellSize); continue; }
+          ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+          ctx.fillRect(px, py, cellSize, cellSize);
+        }
+      }
+
+      // Grid lines
       ctx.strokeStyle = '#d0d0d0';
       ctx.lineWidth = 1;
       for (let i = 0; i <= gridW; i++) {
-        const px = i * cellSize + 0.5;
-        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, gridH*cellSize); ctx.stroke();
+        const px = COORD + i*cellSize + 0.5;
+        ctx.beginPath(); ctx.moveTo(px, COORD); ctx.lineTo(px, COORD + gridH*cellSize); ctx.stroke();
       }
       for (let j = 0; j <= gridH; j++) {
-        const py = j * cellSize + 0.5;
-        ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(gridW*cellSize, py); ctx.stroke();
+        const py = COORD + j*cellSize + 0.5;
+        ctx.beginPath(); ctx.moveTo(COORD, py); ctx.lineTo(COORD + gridW*cellSize, py); ctx.stroke();
       }
+
+      // Color labels
       if (showLabels && cellSize >= 18) {
         const fontSize = Math.max(8, Math.floor(cellSize * 0.42));
         ctx.font = `bold ${fontSize}px Arial,sans-serif`;
@@ -2347,8 +2389,8 @@
           for (let x = 0; x < gridW; x++) {
             const c = grid[y][x];
             if (!c) continue;
-            const cx = x*cellSize + cellSize/2;
-            const cy = y*cellSize + cellSize/2;
+            const cx = COORD + x*cellSize + cellSize/2;
+            const cy = COORD + y*cellSize + cellSize/2;
             const tw = ctx.measureText(c.name).width;
             const padX = Math.max(1, fontSize * 0.22);
             const padY = Math.max(1, fontSize * 0.12);
@@ -2364,7 +2406,7 @@
           }
         }
       }
-      // 应用当前缩放
+
       setZoom(currentZoom);
     }
 
@@ -2521,65 +2563,71 @@
     }
 
     // ─── 导出功能 ────────────────────────────────────────────────────────────────
-    function exportPNG() {
-      const hdExport = document.getElementById('hd-export')?.checked;
-      const CS    = 28;                     // 逻辑格子尺寸（与屏幕预览一致）
-      const SCALE = hdExport ? 3 : 2;       // 超高清 3×，默认 2×
-      const COORD = Math.round(CS * 0.72); // 坐标边距
+    // ── 公用导出画布构建（PNG / JPG / PDF 共用） ─────────────────────────────
+    function buildExportCanvas(scale) {
+      const CS    = 28;
+      const COORD = Math.round(CS * 0.72);  // 每侧坐标边距
 
       const grid  = currentGrid;
       const gridW = currentGridW;
       const gridH = currentGridH;
 
-      // ── 图例布局计算 ──────────────────────────────────────────────────────────
-      const sorted    = Object.entries(currentColorCount || {}).sort((a,b) => b[1]-a[1]);
-      const swatchSz  = Math.round(CS * 0.42);
-      const chipW     = Math.round(CS * 2.7);
-      const chipH     = Math.round(CS * 0.62);
-      const chipGap   = Math.round(CS * 0.18);
-      const legPadT   = Math.round(CS * 0.4);
-      const legPadB   = Math.round(CS * 0.3);
-      const perRow    = Math.max(1, Math.floor((gridW * CS) / (chipW + chipGap)));
-      const legRows   = Math.ceil(sorted.length / perRow);
-      const legH      = legRows > 0 ? legPadT + legRows*(chipH+chipGap) + legPadB : 0;
+      // 图例布局
+      const sorted   = Object.entries(currentColorCount || {}).sort((a,b) => b[1]-a[1]);
+      const swatchSz = Math.round(CS * 0.42);
+      const chipW    = Math.round(CS * 2.7);
+      const chipH    = Math.round(CS * 0.62);
+      const chipGap  = Math.round(CS * 0.18);
+      const legPadT  = Math.round(CS * 0.5);
+      const legPadB  = Math.round(CS * 0.3);
+      const perRow   = Math.max(1, Math.floor((gridW * CS) / (chipW + chipGap)));
+      const legRows  = Math.ceil(sorted.length / perRow);
+      const legH     = legRows > 0 ? legPadT + legRows*(chipH+chipGap) + legPadB : 0;
 
-      // ── canvas 尺寸（逻辑坐标，ctx.scale 放大） ──────────────────────────────
-      const logW = COORD + gridW * CS;
-      const logH = COORD + gridH * CS + legH;
+      // 四边坐标轴：logW = COORD + 内容 + COORD
+      const logW = COORD + gridW * CS + COORD;
+      const logH = COORD + gridH * CS + COORD + legH;
 
       const tmp = document.createElement('canvas');
-      tmp.width  = logW * SCALE;
-      tmp.height = logH * SCALE;
+      tmp.width  = logW * scale;
+      tmp.height = logH * scale;
       const ctx  = tmp.getContext('2d');
-      ctx.scale(SCALE, SCALE);
+      ctx.scale(scale, scale);
 
-      // ── 背景 ─────────────────────────────────────────────────────────────────
+      // 白底
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, logW, logH);
 
-      // 坐标区域浅灰底
+      // 四边坐标底色
       ctx.fillStyle = '#f7f7f5';
-      ctx.fillRect(0, 0, logW, COORD);
-      ctx.fillRect(0, 0, COORD, logH);
+      ctx.fillRect(0, 0, logW, COORD);                              // 顶
+      ctx.fillRect(0, COORD + gridH*CS, logW, COORD);               // 底（图例上方）
+      ctx.fillRect(0, 0, COORD, COORD + gridH*CS + COORD);          // 左
+      ctx.fillRect(logW - COORD, 0, COORD, COORD + gridH*CS + COORD); // 右
 
-      // ── 列号（顶部） ─────────────────────────────────────────────────────────
+      // 坐标数字
       const coordFs = Math.max(7, Math.round(COORD * 0.52));
       ctx.font = `bold ${coordFs}px Arial,sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = '#555';
+      const colStep = gridW <= 40 ? 1 : 5;
+      const rowStep = gridH <= 40 ? 1 : 5;
       for (let x = 0; x < gridW; x++) {
-        if ((x+1) % 5 === 0 || x === 0)   // 只标 1,5,10,15... 避免拥挤
-          ctx.fillText(x+1, COORD + x*CS + CS/2, COORD/2);
+        if (x === 0 || (x+1) % colStep === 0) {
+          const cx = COORD + x*CS + CS/2;
+          ctx.fillText(x+1, cx, COORD/2);                          // 顶
+          ctx.fillText(x+1, cx, COORD + gridH*CS + COORD/2);       // 底
+        }
       }
-
-      // ── 行号（左侧） ─────────────────────────────────────────────────────────
-      ctx.textAlign = 'center';
       for (let y = 0; y < gridH; y++) {
-        if ((y+1) % 5 === 0 || y === 0)
-          ctx.fillText(y+1, COORD/2, COORD + y*CS + CS/2);
+        if (y === 0 || (y+1) % rowStep === 0) {
+          const cy = COORD + y*CS + CS/2;
+          ctx.fillText(y+1, COORD/2, cy);                          // 左
+          ctx.fillText(y+1, logW - COORD/2, cy);                   // 右
+        }
       }
 
-      // ── 格子填色 ──────────────────────────────────────────────────────────────
+      // 格子填色
       for (let y = 0; y < gridH; y++) {
         for (let x = 0; x < gridW; x++) {
           const px = COORD + x*CS, py = COORD + y*CS;
@@ -2589,9 +2637,8 @@
         }
       }
 
-      // ── 网格线 ────────────────────────────────────────────────────────────────
-      ctx.strokeStyle = '#d0d0d0';
-      ctx.lineWidth = 0.5;
+      // 网格线
+      ctx.strokeStyle = '#d0d0d0'; ctx.lineWidth = 0.5;
       for (let i = 0; i <= gridW; i++) {
         const px = COORD + i*CS + 0.5;
         ctx.beginPath(); ctx.moveTo(px, COORD); ctx.lineTo(px, COORD+gridH*CS); ctx.stroke();
@@ -2600,12 +2647,10 @@
         const py = COORD + j*CS + 0.5;
         ctx.beginPath(); ctx.moveTo(COORD, py); ctx.lineTo(COORD+gridW*CS, py); ctx.stroke();
       }
-      // 外框加深
-      ctx.strokeStyle = '#aaa';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
       ctx.strokeRect(COORD+0.5, COORD+0.5, gridW*CS-1, gridH*CS-1);
 
-      // ── 色号标签（白底圆角块 + 黑字） ───────────────────────────────────────
+      // 色号标签
       const fontSize = Math.max(8, Math.floor(CS * 0.42));
       ctx.font = `bold ${fontSize}px Arial,sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -2613,13 +2658,10 @@
         for (let x = 0; x < gridW; x++) {
           const c = grid[y][x];
           if (!c) continue;
-          const cx = COORD + x*CS + CS/2;
-          const cy = COORD + y*CS + CS/2;
+          const cx = COORD + x*CS + CS/2, cy = COORD + y*CS + CS/2;
           const tw  = ctx.measureText(c.name).width;
-          const padX = Math.max(1.5, fontSize*0.2);
-          const padY = Math.max(1,   fontSize*0.1);
-          const bw  = Math.min(tw + padX*2, CS-2);
-          const bh  = Math.min(fontSize + padY*2, CS-2);
+          const padX = Math.max(1.5, fontSize*0.2), padY = Math.max(1, fontSize*0.1);
+          const bw = Math.min(tw+padX*2, CS-2), bh = Math.min(fontSize+padY*2, CS-2);
           ctx.fillStyle = 'rgba(255,255,255,0.82)';
           ctx.beginPath();
           ctx.roundRect(Math.round(cx-bw/2), Math.round(cy-bh/2), Math.ceil(bw), Math.ceil(bh), Math.max(2, fontSize*0.25));
@@ -2629,50 +2671,57 @@
         }
       }
 
-      // ── 底部颜色图例 ──────────────────────────────────────────────────────────
+      // 底部颜色图例
       if (sorted.length > 0) {
-        const legTop = COORD + gridH*CS + legPadT;
+        const legTop = COORD + gridH*CS + COORD + legPadT;
         const legFs  = Math.max(9, Math.round(CS * 0.38));
 
-        // 分隔线
         ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.5;
         ctx.beginPath();
-        ctx.moveTo(COORD, COORD + gridH*CS + legPadT*0.4);
-        ctx.lineTo(COORD + gridW*CS, COORD + gridH*CS + legPadT*0.4);
+        ctx.moveTo(COORD, COORD + gridH*CS + COORD * 0.35);
+        ctx.lineTo(COORD + gridW*CS, COORD + gridH*CS + COORD * 0.35);
         ctx.stroke();
 
         ctx.font = `bold ${legFs}px Arial,sans-serif`;
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-
         sorted.forEach(([name, count], i) => {
-          const col = i % perRow;
-          const row = Math.floor(i / perRow);
+          const col = i % perRow, row = Math.floor(i / perRow);
           const ix  = COORD + col*(chipW+chipGap);
           const iy  = legTop + row*(chipH+chipGap);
           const c   = COLOR_MAP[name];
-
-          // 色块
-          const sy = iy + (chipH-swatchSz)/2;
+          const sy  = iy + (chipH-swatchSz)/2;
           ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
           ctx.fillRect(ix, sy, swatchSz, swatchSz);
           ctx.strokeStyle = '#ccc'; ctx.lineWidth = 0.5;
           ctx.strokeRect(ix+0.5, sy+0.5, swatchSz-1, swatchSz-1);
-
-          // 文字：色号 + 数量
           ctx.fillStyle = '#222';
           ctx.fillText(`${name} ×${count}`, ix+swatchSz+4, iy+chipH/2);
         });
       }
 
+      return tmp;
+    }
+
+    function exportPNG() {
+      const scale = document.getElementById('hd-export')?.checked ? 3 : 2;
+      const tmp = buildExportCanvas(scale);
       const a = document.createElement('a');
       a.download = 'mard-pattern.png';
       a.href = tmp.toDataURL('image/png');
       a.click();
     }
 
+    function exportJPG() {
+      const scale = document.getElementById('hd-export')?.checked ? 3 : 2;
+      const tmp = buildExportCanvas(scale);
+      const a = document.createElement('a');
+      a.download = 'mard-pattern.jpg';
+      a.href = tmp.toDataURL('image/jpeg', 0.95);
+      a.click();
+    }
+
     function exportPDF() {
-      const canvas = document.getElementById('grid-canvas');
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = buildExportCanvas(2).toDataURL('image/png');
       const kitNames = new Set();
       for (const s of KIT_TIERS[currentTierIndex].series)
         for (const n of SERIES[s]) kitNames.add(n);
@@ -2903,6 +2952,7 @@
 
     function exportAndClose(fn) { fn(); document.getElementById('export-menu').classList.remove('open'); }
     document.getElementById('download-png-btn').addEventListener('click', () => exportAndClose(exportPNG));
+    document.getElementById('download-jpg-btn').addEventListener('click', () => exportAndClose(exportJPG));
     document.getElementById('export-pdf-btn').addEventListener('click', () => exportAndClose(exportPDF));
     document.getElementById('export-csv-btn').addEventListener('click', () => exportAndClose(exportCSV));
     document.getElementById('export-txt-btn').addEventListener('click', () => exportAndClose(exportTXT));
